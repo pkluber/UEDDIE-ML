@@ -1,0 +1,203 @@
+import numpy as np
+import cupy as cp
+from pyscf import gto, lib
+from pyscf.tools.cubegen import Cube
+from gpu4pyscf import scf, mp, df, dft
+
+from pathlib import Path
+
+DATA_DIR = Path('data')
+
+DEFAULT_RESOLUTION = 0.1
+DEFAULT_EXTENSION = 5.0
+
+def get_atom_monomers_and_dimer(xyz_file: Path):
+    with open(xyz_file, 'r') as fd:
+        lines = fd.readlines()
+
+    num_atoms_m1 = int(lines[0])
+    m1_start = 2 
+    xyz_m1 = ''.join(lines[m1_start:m1_start+num_atoms_m1])
+    
+    num_atoms_m2 = int(lines[m1_start + num_atoms_m1])
+    m2_start = m1_start + num_atoms_m1 + 2
+    xyz_m2 = ''.join(lines[m2_start:m2_start+num_atoms_m2])
+
+    xyz_dimer = xyz_m1+xyz_m2 
+
+    return xyz_m1, xyz_m2, xyz_dimer 
+
+def get_mol(atom: str, basis: str, charge: int) -> gto.Mole:
+    mol = gto.Mole()
+    mol.atom = atom
+    mol.basis = basis
+    mol.charge = charge
+    mol.spin = 0  # shouldn't be any spin 
+    mol.build()
+
+    return mol
+
+def get_monomers_and_dimer_mol(xyz_path: Path, basis: str = 'cc-pVTZ') -> Tuple[gto.Mole, gto.Mole, gto.Mole]:
+    atom_m1, atom_m2, atom_dimer = get_atom_monomers_and_dimer(xyz_path)
+    charge_m1, charge_m2, charge_dimer = get_charges(xyz_path.name)
+    
+    return get_mol(atom_m1, basis, charge_m1), get_mol(atom_m2, basis, charge_m2), get_mol(atom_dimer, basis, charge_dimer)
+
+def density_or_none(mf: scf.hf.SCF) -> cp.ndarray | None:
+    if not mf.converged:
+        return None
+    return mf.make_rdm1(ao_repr=True)
+
+def hf(mol: gto.Mole) -> cp.ndarray | None:
+    mf = scf.RHF(mol)
+    mf.kernel()
+    return density_or_none(mf)
+
+def mp2(mol: gto.Mole) -> cp.ndarray | None:
+    mf = scf.RHF(mol)
+    mf.kernel()
+    mp2 = mp.MP2(mf)
+    mp2.kernel()
+    return density_or_none(mp2)
+
+def pbe0(mol: gto.Mole) -> cp.ndarray | None:
+    mf = dft.RKS(mol)
+    mf.xc = 'pbe0'
+    mf.kernel()
+    return density_or_none(mf)
+
+def lda(mol: gto.Mole) -> cp.ndarray | None:
+    mf = dft.RKS(mol)
+    mf.xc = 'lda'
+    mf = mf.newton()
+    mf.kernel()
+    return density_or_none(mf)
+
+# Adapted from EDDIE-ML: https://github.com/lowkc/eddie-ml/blob/main/density/cube_utils.py#L238
+def generate_uniform_grid(molecule: gto.Mole, spacing=0.2, extension=4, rotate=False, verbose=True):
+    '''
+    molecule = a pySCF mol object
+    spacing = the increment between grid points
+    extension = the amount to extend the cube on each side of the molecule
+    rotate = when True, the molecule is rotated so the axes of the cube file
+    are aligned with the principle axes of rotation of the molecule.
+    '''
+    numbers = molecule.atom_charges()
+    pseudo_numbers = molecule.atom_charges()
+    coordinates = molecule.atom_coords()
+    # calculate the centre of mass of the nuclear charges
+    totz = np.sum(pseudo_numbers)
+    com = np.dot(pseudo_numbers, coordinates) / totz
+    
+    if rotate:
+        # calculate moment of inertia tensor:
+        itensor = np.zeros([3,3])
+        for i in range(pseudo_numbers.shape[0]):
+            xyz = coordinates[i] - com
+            r = np.linalg.norm(xyz)**2.0
+            tempitens = np.diag([r,r,r])
+            tempitens -= np.outer(xyz.T, xyz)
+            itensor += pseudo_numbers[i] * tempitens
+        _, v = np.linalg.eigh(itensor)
+        new_coords = np.dot((coordinates - com), v)
+        axes = spacing * v
+        
+    else:
+        # use the original coordinates
+        new_coords = coordinates
+        # compute the unit vectors of the cubic grid's coordinate system
+        axes = np.diag([spacing, spacing, spacing])
+        
+    # max and min value of the coordinates
+    max_coordinate = np.amax(new_coords, axis=0)
+    min_coordinate = np.amin(new_coords, axis=0)
+    # compute the required number of points along each axis
+    shape = (max_coordinate - min_coordinate + 2.0*extension) / spacing
+    shape = np.ceil(shape)
+    shape = np.array(shape, int)
+    origin = com - np.dot((0.5*shape), axes)
+    
+    npoints_x, npoints_y, npoints_z = shape
+    npoints = npoints_x * npoints_y * npoints_z # total number of grid points
+    
+    points = np.zeros((npoints, 3)) # array to store coordinates of grid points
+    coords = np.array(np.meshgrid(np.arange(npoints_x), np.arange(npoints_y),
+                                np.arange(npoints_z)))
+    coords = np.swapaxes(coords, 1, 2)
+    coords = coords.reshape(3, -1)
+    coords = coords.T
+    points = coords.dot(axes)
+    # compute coordinates of grid points relative to the origin
+    points += origin
+
+    if verbose:
+        print('Cube origin: {}'.format(origin))
+    
+    return points, origin
+
+def generate_density(mol: gto.Mole, dm: cp.ndarray, extension: float, origin: np.ndarray, resolution: float | None = None, ns: Tuple[float, float, float] | None = None, extent: np.ndarray | None = None) -> Tuple[np.ndarray, Tuple[float, float, float], np.ndarray, Cube]:
+    if resolution is None and (ns is None or extent is None):
+        raise ValueError('Optional args resolution and ns + extent cannot both be None!')
+
+    if resolution is None:
+        nx, ny, nz = ns
+        cube = Cube(mol, nx, ny, nz, margin=extension, origin=origin, extent=extent)
+    else:
+        cube = Cube(mol, resolution=resolution, margin=extension, origin=origin)
+    
+    blksize = min(80000, cube.get_ngrids())
+
+    rho = np.empty(cube.get_ngrids())
+    for ip0, ip1 in lib.prange(0, cube.get_ngrids(), blksize):
+        ao = mol.eval_gto('GTOval', cube.get_coords()[ip0:ip1]) 
+        ao = cp.asarray(ao)
+        rho[ip0:ip1] = dft.numint.eval_rho(mol, ao.T, dm).get()
+    rho = rho.reshape(nx, ny, nz)
+
+    return rho, (cube.nx, cube.ny, cube.nz), np.diag(cube.box), cube
+
+def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION) -> bool:
+    mol_m1, mol_m2, mol_dimer = get_monomers_and_dimer_mol(xyz_path)
+    
+    method = method.strip().upper()
+    if method not in ['HF', 'MP2', 'PBE0', 'LDA']:
+        raise ValueError('Methods currently implemented: HF, MP2, PBE0, and LDA only.')
+    
+    if method == 'HF':
+        dm_m1, dm_m2, dm_dimer = hf(mol_m1), hf(mol_m2), hf(mol_dimer)
+    elif method == 'MP2':
+        dm_m1, dm_m2, dm_dimer = mp2(mol_m1), mp2(mol_m2), mp2(mol_dimer)
+    elif method == 'PBE0':
+        dm_m1, dm_m2, dm_dimer = pbe0(mol_m1), pbe0(mol_m2), pbe0(mol_dimer)
+    else:
+        dm_m1, dm_m2, dm_dimer = lda(mol_m1), lda(mol_m2), lda(mol_dimer)
+
+    if dm_dimer is None or dm_m1 is None or dm_m2 is None:
+        return False  # Failed deformation density calculation if method failed to converge
+
+    _, origin = generate_uniform_grid(mol_dimer, spacing=resolution, extension=extension, rotate=False, verbose=False)    
+
+    rho_dimer, ns, box, cube_dimer = generate_density(mol_dimer, dm_dimer, extension, origin, resolution=resolution)
+    rho_m1, _, _, _ = generate_density(mol_m1, dm_m1, extension, origin, ns=ns, extent=box)
+    rho_m2, _, _, _ = generate_density(mol_m2, dm_m2, extension, origin, ns=ns, extent=box)
+
+    rho_def = rho_dimer - rho_m1 - rho_m2
+    
+    cube_dimer.write(rho_def, str(xyz_path.parent / f'{xyz_path.stem}.cube'), comment=f'{method}/cc-pVTZ deformation density for {xyz_path.name}')
+
+def dimer_cube_differences(method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION):
+    for path in DATA_DIR.rglob('*.xyz'):
+        if path.is_file() and path.suffix == '.xyz':
+            dimer_cube_difference(path, method, resolution=resolution, extension=extension)
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Get the deformation density for any dimer .xyz structure.')
+    parser.add_argument('method', type=str, help='Density type. Choose from HF, MP2, LDA, or PBE0')
+    parser.add_argument('--resolution', type=float, default=0.1, help='.cube resolution')
+    parser.add_argument('--extension', type=float, default=5, help='Extension on sides of .cube file')
+
+    args = parser.parse_args()
+
+    dimer_cube_differences(args.method, args.resolution, args.extension) 
