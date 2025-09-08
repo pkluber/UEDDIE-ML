@@ -17,26 +17,12 @@ parser.add_argument('--hf', type=bool, default=False, help='Whether to just calc
 
 args = parser.parse_args()
 
-NEUTRAL_TAR = 'data/neutral-dimers.tar.gz' 
-
-def list_contents(tarfile_path: str) -> list[str]:
-    outputs = []
-    with tarfile.open(tarfile_path, 'r:gz') as tar:
-        for member in tar.getmembers():
-            filename = os.path.basename(member.name)
-            outputs.append(filename)
-
-    return outputs
-
-
-NEUTRAL_SYSTEMS = list_contents(NEUTRAL_TAR)
-
 def hf(geom: str) -> float:
     psi4.geometry(geom)
     psi4.set_options({'basis': 'aug-cc-pvqz', 'soscf': args.newton})
     return psi4.energy('scf')
 
-def hf_int_energy(dimer_geom: str, mono1_geom: str, mono2_geom: str):
+def hf_int_energy(mono1_geom: str, mono2_geom: str, dimer_geom: str):
     return hf(dimer_geom) - hf(mono1_geom) - hf(mono2_geom)
 
 def mp2(geom: str) -> tuple[float, float, psi4.core.Wavefunction]:
@@ -50,7 +36,7 @@ def mp2(geom: str) -> tuple[float, float, psi4.core.Wavefunction]:
 MP2_OS_ENG = 'MP2 OPPOSITE-SPIN CORRELATION ENERGY'
 MP2_SS_ENG = 'MP2 SAME-SPIN CORRELATION ENERGY'
 
-def srs_mp2_int_energy(dimer_geom: str, mono1_geom: str, mono2_geom: str): 
+def srs_mp2_int_energy(mono1_geom: str, mono2_geom: str, dimer_geom: str): 
     d_hf_e, d_mp2_e, d_wfn = mp2(dimer_geom) 
     m1_hf_e, m1_mp2_e, m1_wfn = mp2(mono1_geom)
     m2_hf_e, m2_mp2_e, m2_wfn = mp2(mono2_geom)
@@ -87,7 +73,7 @@ if ENERGY_FILE.is_file() and ENERGY_FILE.exists():
 
         
 
-data_dir = Path('data/bcurves')
+data_dir = Path('data')
 for file in data_dir.rglob('*'):
     if file.is_file() and file.suffix == '.xyz':
         # Skip over files that alread yappear in energies.dat
@@ -99,7 +85,7 @@ for file in data_dir.rglob('*'):
 
         filename = str(file)
         try:
-            dimer_geom, mono1_geom, mono2_geom = geom_from_xyz_dimer(filename, charges)
+            mono1_geom, mono2_geom, dimer_geom = geom_from_xyz_dimer(filename, charges)
         except TypeError:
             print(f'Failed to read dimer xyz for {file.name}')
             continue
@@ -108,9 +94,9 @@ for file in data_dir.rglob('*'):
             print(f'Running calculations for {file.name}', flush=True)
             psi4.core.clean()
             if not args.hf:
-                interaction_energy = srs_mp2_int_energy(dimer_geom, mono1_geom, mono2_geom)
+                interaction_energy = srs_mp2_int_energy(mono1_geom, mono2_geom, dimer_geom)
             else:
-                interaction_energy = hf_int_energy(dimer_geom, mono1_geom, mono2_geom)
+                interaction_energy = hf_int_energy(mono1_geom, mono2_geom, dimer_geom)
             with open(ENERGY_FILE, 'a+') as fd:
                 fd.write(f'{file.name} {interaction_energy}\n')
             print(f'Finished calculations for {file.name}!', flush=True)

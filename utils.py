@@ -25,14 +25,14 @@ def get_charges(filename: str) -> Tuple[int, int, int]:
         if charge1 == charge2 or charge1 + charge2 != 0: 
             return 0, 0, 0
         else:
-            return 0, charge1, charge2
+            return charge1, charge2, 0
     elif filename.startswith('C_'): # IL174
-        return 0, 1, -1
+        return 1, -1, 0
     elif filename.startswith('C'): # extraILs
         if filename.startswith('C0491_A0090') or filename.startswith('C2004_A0073'):
-            return 0, -1, 1
+            return -1, 1, 0
         else:
-            return 0, 1, -1
+            return 1, -1, 0
 
 def get_charge_from_position(system_name: str, position: np.ndarray) -> int | None:
     position = np.array(position)
@@ -54,9 +54,9 @@ def get_charge_from_position(system_name: str, position: np.ndarray) -> int | No
                 split = line.strip().split()
                 xyz = np.array([float(num) for num in split[1:]])
                 if np.linalg.norm(xyz - position) < 1e-6:
-                    return charges[1]
+                    return charges[0]
 
-            return charges[2] 
+            return charges[1] 
         except ValueError:
             print(f'Error trying to parse xyz file {path}')
             return None
@@ -88,34 +88,9 @@ def geom_from_xyz_dimer(filename: str, charges: Tuple[int, int, int]) -> Tuple[s
             m2_start = m1_start + num_atoms_m1 + 2
             geometry_m2 = "".join(lines[m2_start:m2_start+num_atoms_m2])
 
-            return f'{charges[0]} 1\n{geometry_m1+geometry_m2}', \
-                    f'{charges[1]} 1\n{geometry_m1}', \
-                    f'{charges[2]} 1\n{geometry_m2}'
+            return f'{charges[0]} 1\n{geometry_m1}', \
+                    f'{charges[1]} 1\n{geometry_m2}', \
+                    f'{charges[2]} 1\n{geometry_m1+geometry_m2}'
         except ValueError:
             print(f'Error parsing xyz file {filename}')
             return None
-
-GHOSTS_FOOTER = 'no_com\nno_reorient\n'
-def geom_from_xyz_dimer_ghosts(filename: str, charges: Tuple[int, int, int]) -> Tuple[str, str, str, str] | None:
-    with open(filename) as fd:
-        lines = fd.readlines() # note preserves \n characters
-        try:
-            num_atoms_m1 = int(lines[0])
-            num_atoms_m2 = int(lines[num_atoms_m1+2])
-
-            m1_start = 2
-            geometry_m1 = "".join(lines[m1_start:m1_start+num_atoms_m1])
-            m2_start = m1_start + num_atoms_m1 + 2
-            geometry_m2 = "".join(lines[m2_start:m2_start+num_atoms_m2])
-
-            ghosts_m1 = '@' + '@'.join(lines[m1_start:m1_start+num_atoms_m1])
-            ghosts_m2 = '@' + '@'.join(lines[m2_start:m2_start+num_atoms_m2])
-
-            return f'{charges[1]} 1\n{geometry_m1}--\n0 1\n{ghosts_m2}{GHOSTS_FOOTER}', \
-                    f'{charges[2]} 1\n{geometry_m2}--\n0 1\n{ghosts_m1}{GHOSTS_FOOTER}', \
-                    f'{charges[1]} 1\n{geometry_m1}{GHOSTS_FOOTER}', \
-                    f'{charges[2]} 1\n{geometry_m2}{GHOSTS_FOOTER}'
-        except ValueError:
-            print(f'Error parsing xyz file {filename}')
-            return None
-
