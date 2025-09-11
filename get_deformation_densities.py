@@ -1,15 +1,18 @@
 import numpy as np
-import cupy as cp
 from pyscf import gto, lib
 from pyscf.tools.cubegen import Cube
+
 try:
     from gpu4pyscf import scf, mp, df, dft
+    import cupy as cp
     print('GPU4PySCF detected and in use')
     GPU = True
 except ImportError:
     from pyscf import scf, mp, df, dft
     print('GPU4PySCF not found and will not be used')
     GPU = False
+
+from utils import get_charges
 
 from pathlib import Path
 from typing import Tuple
@@ -49,30 +52,30 @@ def get_monomers_and_dimer_mol(xyz_path: Path, basis: str = 'cc-pVTZ') -> Tuple[
     
     return get_mol(atom_m1, basis, charge_m1), get_mol(atom_m2, basis, charge_m2), get_mol(atom_dimer, basis, charge_dimer)
 
-def density_or_none(mf: scf.hf.SCF) -> cp.ndarray | None:
+def density_or_none(mf: scf.hf.SCF) -> np.ndarray | None:
     if not mf.converged:
         return None
     return mf.make_rdm1(ao_repr=True)
 
-def hf(mol: gto.Mole) -> cp.ndarray | None:
+def hf(mol: gto.Mole) -> np.ndarray | None:
     mf = scf.RHF(mol)
     mf.kernel()
     return density_or_none(mf)
 
-def mp2(mol: gto.Mole) -> cp.ndarray | None:
+def mp2(mol: gto.Mole) -> np.ndarray | None:
     mf = scf.RHF(mol)
     mf.kernel()
     mp2 = mp.MP2(mf)
     mp2.kernel()
     return density_or_none(mp2)
 
-def pbe0(mol: gto.Mole) -> cp.ndarray | None:
+def pbe0(mol: gto.Mole) -> np.ndarray | None:
     mf = dft.RKS(mol)
     mf.xc = 'pbe0'
     mf.kernel()
     return density_or_none(mf)
 
-def lda(mol: gto.Mole) -> cp.ndarray | None:
+def lda(mol: gto.Mole) -> np.ndarray | None:
     mf = dft.RKS(mol)
     mf.xc = 'lda'
     mf = mf.newton()
@@ -141,7 +144,7 @@ def generate_uniform_grid(molecule: gto.Mole, spacing=0.2, extension=4, rotate=F
     
     return points, origin
 
-def generate_density(cube: Cube, mol: gto.Mole, dm: cp.ndarray) -> np.ndarray:
+def generate_density(cube: Cube, mol: gto.Mole, dm: np.ndarray) -> np.ndarray:
     nx, ny, nz = cube.nx, cube.ny, cube.nz 
     blksize = min(80000, cube.get_ngrids())
 
@@ -150,12 +153,18 @@ def generate_density(cube: Cube, mol: gto.Mole, dm: cp.ndarray) -> np.ndarray:
         ao = mol.eval_gto('GTOval', cube.get_coords()[ip0:ip1]) 
         if GPU:
             ao = cp.asarray(ao).T
-        rho[ip0:ip1] = dft.numint.eval_rho(mol, ao, dm).get()
+
+        rho_chunk = dft.numint.eval_rho(mol, ao, dm)
+        if GPU:
+            rho_chunk = rho_chunk.get()
+
+        rho[ip0:ip1] = rho_chunk
     rho = rho.reshape(nx, ny, nz)
 
     return rho
 
 def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION) -> bool:
+    print(f'Generating deformation density for {xyz_path.name}...')
     mol_m1, mol_m2, mol_dimer = get_monomers_and_dimer_mol(xyz_path)
     
     method = method.strip().upper()
@@ -190,6 +199,7 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
     rho_def = rho_dimer - rho_m1 - rho_m2
     
     cube_dimer.write(rho_def, str(xyz_path.parent / f'{xyz_path.stem}.cube'), comment=f'{method}/cc-pVTZ deformation density for {xyz_path.name}')
+    print(f'Done generating deformation density for {xyz_path.name}!')
 
 def dimer_cube_differences(data_dir: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION):
     for path in data_dir.rglob('*.xyz'):
@@ -203,7 +213,7 @@ if __name__ == '__main__':
     parser.add_argument('method', type=str, help='Density type. Choose from HF, MP2, LDA, or PBE0')
     parser.add_argument('--resolution', type=float, default=0.1, help='.cube resolution')
     parser.add_argument('--extension', type=float, default=5, help='Extension on sides of .cube file')
-    parser.add_argument('--path', type=str, default='data', help='Relative path to data directory')
+    parser.add_argument('--path', type=str, default='data/bcurves', help='Relative path to data directory')
     parser.add_argument('--input', type=str, default='', help='Input file to use for generating a single .cube file')
 
     args = parser.parse_args()
@@ -211,4 +221,4 @@ if __name__ == '__main__':
     if len(args.input) > 0:
         dimer_cube_difference(Path(args.input), args.method, args.resolution, args.extension)
     else:
-        dimer_cube_differences(args.path, args.method, args.resolution, args.extension) 
+        dimer_cube_differences(Path(args.path), args.method, args.resolution, args.extension) 
