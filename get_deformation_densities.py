@@ -2,16 +2,22 @@ import numpy as np
 import cupy as cp
 from pyscf import gto, lib
 from pyscf.tools.cubegen import Cube
-from gpu4pyscf import scf, mp, df, dft
+try:
+    from gpu4pyscf import scf, mp, df, dft
+    print('GPU4PySCF detected and in use')
+    GPU = True
+except ImportError:
+    from pyscf import scf, mp, df, dft
+    print('GPU4PySCF not found and will not be used')
+    GPU = False
 
 from pathlib import Path
-
-DATA_DIR = Path('data')
+from typing import Tuple
 
 DEFAULT_RESOLUTION = 0.1
 DEFAULT_EXTENSION = 5.0
 
-def get_atom_monomers_and_dimer(xyz_file: Path):
+def get_atom_monomers_and_dimer(xyz_file: Path) -> Tuple[str, str, str]:
     with open(xyz_file, 'r') as fd:
         lines = fd.readlines()
 
@@ -142,11 +148,12 @@ def generate_density(cube: Cube, mol: gto.Mole, dm: cp.ndarray) -> np.ndarray:
     rho = np.empty(cube.get_ngrids())
     for ip0, ip1 in lib.prange(0, cube.get_ngrids(), blksize):
         ao = mol.eval_gto('GTOval', cube.get_coords()[ip0:ip1]) 
-        ao = cp.asarray(ao)
-        rho[ip0:ip1] = dft.numint.eval_rho(mol, ao.T, dm).get()
+        if GPU:
+            ao = cp.asarray(ao).T
+        rho[ip0:ip1] = dft.numint.eval_rho(mol, ao, dm).get()
     rho = rho.reshape(nx, ny, nz)
 
-    return rho, (cube.nx, cube.ny, cube.nz), np.diag(cube.box), cube
+    return rho
 
 def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION) -> bool:
     mol_m1, mol_m2, mol_dimer = get_monomers_and_dimer_mol(xyz_path)
@@ -184,8 +191,8 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
     
     cube_dimer.write(rho_def, str(xyz_path.parent / f'{xyz_path.stem}.cube'), comment=f'{method}/cc-pVTZ deformation density for {xyz_path.name}')
 
-def dimer_cube_differences(method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION):
-    for path in DATA_DIR.rglob('*.xyz'):
+def dimer_cube_differences(data_dir: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION):
+    for path in data_dir.rglob('*.xyz'):
         if path.is_file() and path.suffix == '.xyz':
             dimer_cube_difference(path, method, resolution=resolution, extension=extension)
 
@@ -196,7 +203,12 @@ if __name__ == '__main__':
     parser.add_argument('method', type=str, help='Density type. Choose from HF, MP2, LDA, or PBE0')
     parser.add_argument('--resolution', type=float, default=0.1, help='.cube resolution')
     parser.add_argument('--extension', type=float, default=5, help='Extension on sides of .cube file')
+    parser.add_argument('--path', type=str, default='data', help='Relative path to data directory')
+    parser.add_argument('--input', type=str, default='', help='Input file to use for generating a single .cube file')
 
     args = parser.parse_args()
 
-    dimer_cube_differences(args.method, args.resolution, args.extension) 
+    if len(args.input) > 0:
+        dimer_cube_difference(Path(args.input), args.method, args.resolution, args.extension)
+    else:
+        dimer_cube_differences(args.path, args.method, args.resolution, args.extension) 
