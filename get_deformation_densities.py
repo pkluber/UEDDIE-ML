@@ -135,16 +135,8 @@ def generate_uniform_grid(molecule: gto.Mole, spacing=0.2, extension=4, rotate=F
     
     return points, origin
 
-def generate_density(mol: gto.Mole, dm: cp.ndarray, extension: float, origin: np.ndarray, resolution: float | None = None, ns: Tuple[float, float, float] | None = None, extent: np.ndarray | None = None) -> Tuple[np.ndarray, Tuple[float, float, float], np.ndarray, Cube]:
-    if resolution is None and (ns is None or extent is None):
-        raise ValueError('Optional args resolution and ns + extent cannot both be None!')
-
-    if resolution is None:
-        nx, ny, nz = ns
-        cube = Cube(mol, nx, ny, nz, margin=extension, origin=origin, extent=extent)
-    else:
-        cube = Cube(mol, resolution=resolution, margin=extension, origin=origin)
-    
+def generate_density(cube: Cube, mol: gto.Mole, dm: cp.ndarray) -> np.ndarray:
+    nx, ny, nz = cube.nx, cube.ny, cube.nz 
     blksize = min(80000, cube.get_ngrids())
 
     rho = np.empty(cube.get_ngrids())
@@ -177,9 +169,16 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
 
     _, origin = generate_uniform_grid(mol_dimer, spacing=resolution, extension=extension, rotate=False, verbose=False)    
 
-    rho_dimer, ns, box, cube_dimer = generate_density(mol_dimer, dm_dimer, extension, origin, resolution=resolution)
-    rho_m1, _, _, _ = generate_density(mol_m1, dm_m1, extension, origin, ns=ns, extent=box)
-    rho_m2, _, _, _ = generate_density(mol_m2, dm_m2, extension, origin, ns=ns, extent=box)
+    cube_dimer = Cube(mol_dimer, resolution=resolution, margin=extension, origin=origin)
+    nx, ny, nz = cube_dimer.nx, cube_dimer.ny, cube_dimer.nz
+    box = np.diag(cube_dimer.box)
+    rho_dimer = generate_density(cube_dimer, mol_dimer, dm_dimer)
+
+    cube_m1 = Cube(mol_m1, nx, ny, nz, margin=extension, origin=origin, extent=box)
+    rho_m1 = generate_density(cube_m1, mol_m1, dm_m1)
+
+    cube_m2 = Cube(mol_m2, nx, ny, nz, margin=extension, origin=origin, extent=box)
+    rho_m2 = generate_density(cube_m2, mol_m2, dm_m2)
 
     rho_def = rho_dimer - rho_m1 - rho_m2
     
