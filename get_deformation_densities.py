@@ -163,7 +163,12 @@ def generate_density(cube: Cube, mol: gto.Mole, dm: np.ndarray) -> np.ndarray:
 
     return rho
 
-def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION) -> bool:
+def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION, overwrite: bool = False) -> bool:
+    cube_path = xyz_path.parent / f'{xyz_path.stem}.cube'
+    if cube_path.is_file() and not overwrite:
+        print('Found .cube file for {xyz_path.name}, not overwriting...')
+        return True
+
     print(f'Generating deformation density for {xyz_path.name}...')
     mol_m1, mol_m2, mol_dimer = get_monomers_and_dimer_mol(xyz_path)
     
@@ -181,6 +186,7 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
         dm_m1, dm_m2, dm_dimer = lda(mol_m1), lda(mol_m2), lda(mol_dimer)
 
     if dm_dimer is None or dm_m1 is None or dm_m2 is None:
+        print(f'Calculations failed to converge for {xyz_path.name}!')
         return False  # Failed deformation density calculation if method failed to converge
 
     _, origin = generate_uniform_grid(mol_dimer, spacing=resolution, extension=extension, rotate=False, verbose=False)    
@@ -200,11 +206,12 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
     
     cube_dimer.write(rho_def, str(xyz_path.parent / f'{xyz_path.stem}.cube'), comment=f'{method}/cc-pVTZ deformation density for {xyz_path.name}')
     print(f'Done generating deformation density for {xyz_path.name}!')
+    return True
 
-def dimer_cube_differences(data_dir: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION):
+def dimer_cube_differences(data_dir: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION, overwrite: bool = False):
     for path in data_dir.rglob('*.xyz'):
         if path.is_file() and path.suffix == '.xyz':
-            dimer_cube_difference(path, method, resolution=resolution, extension=extension)
+            dimer_cube_difference(path, method, resolution=resolution, extension=extension, overwrite=overwrite)
 
 if __name__ == '__main__':
     import argparse
@@ -215,10 +222,11 @@ if __name__ == '__main__':
     parser.add_argument('--extension', type=float, default=5, help='Extension on sides of .cube file')
     parser.add_argument('--path', type=str, default='data/bcurves', help='Relative path to data directory')
     parser.add_argument('--input', type=str, default='', help='Input file to use for generating a single .cube file')
+    parser.add_argument('--overwrite', type=bool, default=False, help='Whether to overwrite pre-existing .cube/.rho files')
 
     args = parser.parse_args()
 
     if len(args.input) > 0:
-        dimer_cube_difference(Path(args.input), args.method, args.resolution, args.extension)
+        dimer_cube_difference(Path(args.input), args.method, args.resolution, args.extension, args.overwrite)
     else:
-        dimer_cube_differences(Path(args.path), args.method, args.resolution, args.extension) 
+        dimer_cube_differences(Path(args.path), args.method, args.resolution, args.extension, args.overwrite) 
