@@ -1,5 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass
+from collections import defaultdict
 
 @dataclass
 class DescriptorParams:
@@ -9,14 +10,7 @@ class DescriptorParams:
     n_l: int      # Max angular degree to use
     gamma: float  # Dampening parameter
 
-@dataclass
-class AtomDescriptorParams:
-    params_h: DescriptorParams
-    params_c: DescriptorParams
-    params_n: DescriptorParams
-    params_o: DescriptorParams
-
-def calculate_dens_coeffs(data_dir: Path, output_name: str, params: AtomDescriptorParams, alignment_method: str):
+def calculate_dens_coeffs(data_dir: Path, output_name: str, params: dict[str, DescriptorParams], alignment_method: str):
     
 
 if __name__ == '__main__':
@@ -29,8 +23,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     default_params = DescriptorParams(r_o=2.5, r_i=0.0, n_rad=4, n_l=3, gamma=0)
-    default_atom_params = AtomDescriptorParams(params_h=default_params, params_c=default_params,
-                                               params_n=default_params, params_o=default_params)
+    default_atom_params = defaultdict(lambda: default_params)
 
     generate_dens_coeffs(Path(args.path), args.output, default_atom_params, args.align)
 
