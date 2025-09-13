@@ -26,18 +26,20 @@ class Density():
         self.unitcell = unitcell
         self.grid = grid
         self.origin = origin
+        
+        self.U = np.array(self.unitcell)  # Matrix to go from real space to mesh coordinates
+        for i in range(3):
+            self.U[i,:] = U[i,:] / self.grid[i]
+    
+    def to_grid(self, X: np.ndarray) -> np.ndarray:
+        return np.rint(np.dot(self.U, X)).astype(int)
 
-    def mesh_3d(self, rmax: np.ndarray | None = None, scaled: bool = False):
+    def from_grid(self, Xm: np.ndarray) -> np.ndarray:
+        return np.dot(self.U.T, Xm)
+
+    def mesh_3d(self):
         """
         Returns a 3d mesh 
-
-        Parameters
-        ----------
-
-        rmax: list
-            upper cutoff in every euclidean direction.
-        scaled: boolean
-            scale the meshes with unitcell size?
 
         Returns
         -------
@@ -45,31 +47,29 @@ class Density():
         X, Y, Z: tuple of np.ndarray
             defines mesh in real space
         """ 
-        U = np.array(self.unitcell)  # Matrix to go from real space to mesh coordinates
-        for i in range(3):
-            U[i,:] = U[i,:] / self.grid[i]
-
-        if rmax is not None:
-            # Convert rmax to grid coordinates
-            rmax = np.rint(np.dot(U, rmax)).astype(int)
-        else: 
-            # If no rmax, take the entire grid 
-            rmax = np.floor(self.grid / 2).astype(int)  
-
-        x, y, z = [list(range(-rmax[i], rmax[i]+1)) for i in range(3)]
+        xm, ym, zm = [list(range(-self.grid[i], self.grid[i]+1)) for i in range(3)]
         
-        Xm, Ym, Zm = np.meshgrid(x, y, z, indexing='ij')
+        Xm, Ym, Zm = np.meshgrid(xm, ym, zm, indexing='ij')
         
-        if not scaled:
-            return Xm, Ym, Zm
-
         Rm = np.concatenate([Xm.reshape(*Xm.shape,1),
                              Ym.reshape(*Xm.shape,1),
                              Zm.reshape(*Xm.shape,1)], axis = 3)
         
-        R = np.einsum('ij,klmj -> iklm', U.T , Rm)
+        R = np.einsum('ij,klmj -> iklm', self.U.T , Rm)
         X = R[0,:,:,:] + self.origin
         Y = R[1,:,:,:] + self.origin
         Z = R[2,:,:,:] + self.origin
         
         return X, Y, Z 
+
+    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray):
+        R = np.concatenate([X.reshape(*X.shape, 1), Y.reshape(*Y.shape, 1), Z.reshape(*Z.shape, 1)], axis=3)
+        R -= self.origin
+
+        Rm = np.einsum('ij,klmj -> iklm', self.U, R)
+        Rm = np.floor(Rm).astype(int)
+        Xm = Rm[0,:,:,:]
+        Ym = Rm[1,:,:,:]
+        Zm = Rm[2,:,:,:]
+
+        return self.rho[Xm, Ym, Zm]

@@ -87,7 +87,7 @@ def get_density(cube_path: Path) -> Density:
 
 def get_atoms(cube_path: Path) -> Atoms:
     with open(cube_path) as fd:
-        _, coordinates, numbers, _, _ = _read_cube_header(f)
+        _, coordinates, numbers, _, _ = _read_cube_header(fd)
     coordinates *= Bohr # Get atom positions in Ang
     atoms = Atoms(numbers, coordinates)
     return atoms
@@ -150,9 +150,10 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
     
     density, atoms = get_density(cube_path), get_atoms(cube_path)
     atom_positions = atoms.get_positions()
-    atom_species = atom.get_chemical_symbols()
+    atom_species = atoms.get_chemical_symbols()
     
-
+    X, Y, Z = density.mesh_3d(scaled=True)
+    
 
 def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False):
     for path in data_dir.rglob('*.cube'):
