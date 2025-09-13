@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Tuple
 
 # Adapted from MLCF: https://github.com/semodi/mlcf/blob/master/mlc_func/elf/density.py
 class Density():
@@ -37,7 +38,7 @@ class Density():
     def from_grid(self, Xm: np.ndarray) -> np.ndarray:
         return np.dot(self.U.T, Xm)
 
-    def mesh_3d(self):
+    def mesh_3d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Returns a 3d mesh 
 
@@ -62,14 +63,16 @@ class Density():
         
         return X, Y, Z 
 
-    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray):
+    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> Tuple[np.ndarray, float]:
         R = np.concatenate([X.reshape(*X.shape, 1), Y.reshape(*Y.shape, 1), Z.reshape(*Z.shape, 1)], axis=3)
         R -= self.origin
 
         Rm = np.einsum('ij,klmj -> iklm', self.U, R)
-        Rm = np.rint(Rm).astype(int) % self.grid
+        Rm = np.rint(Rm).astype(int) % self.grid  #TODO implement bicubic interpolation
         Xm = Rm[0,:,:,:]
         Ym = Rm[1,:,:,:]
         Zm = Rm[2,:,:,:]
 
-        return self.rho[Xm, Ym, Zm]
+        quadrature = np.linalg.det(U)
+
+        return self.rho[Xm, Ym, Zm], quadrature
