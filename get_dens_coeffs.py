@@ -241,7 +241,7 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
         R_masked, Theta_masked, Phi_masked = R_atom[mask], Theta_atom[mask], Phi_atom[mask]
         
         # Evaluate density at density points
-        rho, V_cell = density.evaluate_at(X_masked, Y_masked, Z_masked)
+        rho, V_cell = density.evaluate_at(X_masked + atom_pos[0], Y_masked + atom_pos[1], Z_masked + atom_pos[2])
 
         # Now get the spherical harmonics for our points
         angs = []
