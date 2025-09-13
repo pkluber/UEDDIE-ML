@@ -32,7 +32,7 @@ class Density():
             self.U[i,:] = U[i,:] / self.grid[i]
     
     def to_grid(self, X: np.ndarray) -> np.ndarray:
-        return np.rint(np.dot(self.U, X)).astype(int)
+        return np.rint(np.dot(self.U, X)).astype(int) % self.grid
 
     def from_grid(self, Xm: np.ndarray) -> np.ndarray:
         return np.dot(self.U.T, Xm)
@@ -67,7 +67,7 @@ class Density():
         R -= self.origin
 
         Rm = np.einsum('ij,klmj -> iklm', self.U, R)
-        Rm = np.floor(Rm).astype(int)
+        Rm = np.rint(Rm).astype(int) % self.grid
         Xm = Rm[0,:,:,:]
         Ym = Rm[1,:,:,:]
         Zm = Rm[2,:,:,:]
