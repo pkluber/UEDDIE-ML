@@ -12,7 +12,7 @@ except ImportError:
     print('GPU4PySCF not found and will not be used')
     GPU = False
 
-from utils import get_charges
+from density.utils import get_charges
 
 from pathlib import Path
 from typing import Tuple
