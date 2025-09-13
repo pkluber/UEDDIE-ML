@@ -28,16 +28,10 @@ class Density():
         self.grid = grid
         self.origin = origin
         
-        self.U = np.array(self.unitcell)  # Matrix to go from real space to mesh coordinates
+        self.U = np.array(self.unitcell)  # Matrix to go from mesh coordinates to real space
         for i in range(3):
             self.U[i,:] = self.U[i,:] / self.grid[i]
     
-    def to_grid(self, X: np.ndarray) -> np.ndarray:
-        return np.rint(np.dot(self.U, X)).astype(int) % self.grid
-
-    def from_grid(self, Xm: np.ndarray) -> np.ndarray:
-        return np.dot(self.U.T, Xm)
-
     def mesh_3d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Returns a 3d mesh 
@@ -56,7 +50,7 @@ class Density():
                              Ym.reshape(*Xm.shape,1),
                              Zm.reshape(*Xm.shape,1)], axis = 3)
         
-        R = np.einsum('ij,klmj -> iklm', self.U.T , Rm)
+        R = np.einsum('ij,klmj -> iklm', self.U , Rm)
         X = R[0,:,:,:] + self.origin[0]
         Y = R[1,:,:,:] + self.origin[1]
         Z = R[2,:,:,:] + self.origin[2]
@@ -66,11 +60,13 @@ class Density():
     def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> Tuple[np.ndarray, float]:
         R = np.concatenate([X.reshape(*X.shape, 1), Y.reshape(*Y.shape, 1), Z.reshape(*Z.shape, 1)], axis=-1)
         R -= self.origin
-        
+
+        U_inv = np.linalg.inv(self.U)
+
         if R.ndim == 4:
-            Rm = np.einsum('ij,klmj -> iklm', self.U, R)
+            Rm = np.einsum('ij,klmj -> iklm', U_inv, R)
         elif R.ndim == 2:
-            Rm = np.einsum('ij,kj -> ik', self.U, R)
+            Rm = np.einsum('ij,kj -> ik', U_inv, R)
             Rm = Rm.T
 
         Rm = np.rint(Rm).astype(int) % self.grid  #TODO implement bicubic interpolation

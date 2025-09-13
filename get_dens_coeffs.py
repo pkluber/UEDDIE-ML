@@ -1,3 +1,4 @@
+from density.coeff import CoeffWrapper
 from density.density import Density
 from density.elf import ElF
 from density.geom import get_nncs_angles, get_elfcs_angles, get_casimir
@@ -121,7 +122,7 @@ def S(r_i: float, r_o: float, gamma: float, n_max: int):
             S[i,j] = np.sum(g_i * g_j * delta)
 
     for i in range(n_max):
-        for j in range(j+1, n_max):
+        for j in range(i+1, n_max):
             S[j,i] = S[i,j]
 
     return S
@@ -140,7 +141,7 @@ def radials(r: np.ndarray, r_i: float, r_o: float, gamma: float, n_max: int):
 
     result[:, r > r_o] = 0
     result[:, r < r_i] = 0
-
+    
     return result
 
 # Adapted from EDDIE-ML: https://github.com/lowkc/eddie-ml/blob/main/density/real_space.py#482
@@ -186,18 +187,18 @@ def orient_elf(i, elf, all_pos, mode):
     if mode == 'casimir':
         oriented = get_casimir(elf.value)
         oriented = np.asarray(list(oriented.values()))
-        elf_oriented = ElF(oriented, angles, elf.basis, elf.species, elf.unitcell, elf.position)
+        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position)
     elif mode == 'neutral':
         oriented = make_real(rotate_tensor(elf.value, np.array(angles), True))
-        elf_oriented = ElF(oriented, angles, elf.basis, elf.species, elf.unitcell, elf.position)
+        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position)
     else:
         elf_transformed = transform(elf.value)
         elf_transformed = np.stack([val for val in elf_transformed.values()]).reshape(-1)
-        n_l = elf.basis[f'n_l_{elf.species.lower()}']
-        n = elf.basis[f'n_rad_{elf.species.lower()}']
+        n_l = elf.params.n_l 
+        n = elf.params.n_rad
         ps = power_spectrum(elf_transformed.reshape(1,-1), n_l-1, n, cgs=None)
         oriented = ps.reshape(-1)
-        elf_oriented = ElF(oriented, angles, elf.basis, elf.species, elf.unitcell, elf.position)
+        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position)
     return elf_oriented
 
 def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False) -> bool:
@@ -212,6 +213,8 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
     atom_positions = atoms.get_positions()
     atom_species = atoms.get_chemical_symbols()
     
+    coeff_file = CoeffWrapper(coeff_path)
+
     X, Y, Z = density.mesh_3d()
     for i in range(len(atoms)):
         atom_pos = atom_positions[i]
@@ -257,12 +260,15 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
                 for m in range(2*l + 1):
                     coeffs[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho) * V_cell
 
-        elf = ElF(coeffs, [0, 0, 0], params, atom_element, density.unitcell, atom_pos)
+        elf = ElF(coeffs, [0, 0, 0], atom_params, atom_element, density.unitcell, atom_pos)
 
         # Compute the aligned elf
         elf = orient_elf(i, elf, atom_positions, align_method)
-
         print(elf.value)
+        coeff_file.add_elf(elf)
+
+    coeff_file.save()
+    print(f'Successfully created {coeff_path.name}!')
 
 def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False):
     for path in data_dir.rglob('*.cube'):

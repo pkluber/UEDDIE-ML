@@ -1,6 +1,7 @@
 from pathlib import Path
 import tarfile, os
-from utils import get_charges, geom_from_xyz_dimer
+from density.utils import get_charges
+from utils import geom_from_xyz_dimer
 
 import psi4
 

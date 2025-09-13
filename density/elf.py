@@ -20,10 +20,10 @@ class ElF():
             position of the atom in the original xyz file
 
     """
-    def __init__(self, value, angles, basis, species, unitcell, position):
+    def __init__(self, value, angles, params, species, unitcell, position):
         self.value = value
         self.angles = angles
-        self.basis = basis
+        self.params = params
         self.species = species
         self.unitcell = unitcell
 
