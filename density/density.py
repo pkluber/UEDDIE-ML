@@ -29,7 +29,7 @@ class Density():
 
     def mesh_3d(self, rmax: np.ndarray | None = None, scaled: bool = False):
         """
-        Returns a 3d mesh taking into account periodic boundary conditions
+        Returns a 3d mesh 
 
         Parameters
         ----------

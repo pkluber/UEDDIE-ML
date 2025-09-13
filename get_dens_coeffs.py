@@ -2,6 +2,9 @@ from density.params import DescriptorParams
 from density.density import Density
 from ase import Atoms
 from ase.units import Bohr  # To convert between A and Bohrs
+import numpy as np
+import scipy
+from scipy.special import sph_harm
 
 from pathlib import Path
 from collections import defaultdict
@@ -89,6 +92,54 @@ def get_atoms(cube_path: Path) -> Atoms:
     atoms = Atoms(numbers, coordinates)
     return atoms
 
+def g(r: float, r_i: float, r_o: float, a: int, gamma: float):
+    def g_(r):
+        return (r-r_i)**2 * (r_o-r)**(a+2) * np.exp(-gamma*(r/r_o)**(1/4))
+
+    # Now normalize in L2 
+    delta = (r_o-r_i)/1000
+    r_grid = np.arange(r_i, r_o, delta)
+    N = np.sqrt(np.sum(g_(r_grid)*g_(r_grid) * delta))
+    
+    # Return normalized g_ value 
+    return g_(r) / N
+
+def S(r_i: float, r_o: float, gamma: float, n_max: int):
+    S = np.zeros((nmax, nmax))
+    
+    # Setup integration grid for left Riemannian sum 
+    delta = (r_o-r_i)/1000
+    r_grid = np.arange(r_i, r_o, delta)
+    
+    for i in range(n_max):
+        g_i = g(r_grid, r_i, r_o, i+1, gamma)
+        for j in range(i, n_max):
+            g_j = g(r_grid, r_i, r_o, j+1, gamma)
+            S[i,j] = np.sum(g_i * g_j * delta)
+
+    for i in range(n_max):
+        for j in range(j+1, n_max):
+            S[j,i] = S[i,j]
+
+    return S
+
+def W(r_i: float, r_o: float, gamma: float, n_max: int):
+    return scipy.linalg.sqrtm(np.linalg.pinv(S(r_i, r_o, gamma, n_max)))
+
+def radials(r: np.ndarray, r_i: float, r_o: float, gamma: float, n_max: int):
+    W = W(r_i, r_o, gamma, n_max)
+    
+    result = np.zeros([n_max] + list(r.shape))
+    for k in range(n_max):
+        rad = g(r, r_i, r_o, k+1, gamma)
+        for j in range(n_max):
+            result[j] += W[j, k] * rad
+
+    result[:, r > r_o] = 0
+    result[:, r < r_i] = 0
+
+    return result
+
 def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False) -> bool:
     coeff_path = cube_path.parent / f'{cube_path.stem}.coeff'
     if coeff_path.is_file() and not overwrite:
@@ -96,6 +147,11 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
         return True
 
     print(f'Calculating deformation density coefficients for {cube_path.name}...')
+    
+    density, atoms = get_density(cube_path), get_atoms(cube_path)
+    atom_positions = atoms.get_positions()
+    atom_species = atom.get_chemical_symbols()
+    
 
 
 def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False):
