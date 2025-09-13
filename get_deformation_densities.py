@@ -166,7 +166,7 @@ def generate_density(cube: Cube, mol: gto.Mole, dm: np.ndarray) -> np.ndarray:
 def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, extension: float = DEFAULT_EXTENSION, overwrite: bool = False) -> bool:
     cube_path = xyz_path.parent / f'{xyz_path.stem}.cube'
     if cube_path.is_file() and not overwrite:
-        print('Found .cube file for {xyz_path.name}, not overwriting...')
+        print(f'Found .cube file for {xyz_path.name}, not overwriting...')
         return True
 
     print(f'Generating deformation density for {xyz_path.name}...')
