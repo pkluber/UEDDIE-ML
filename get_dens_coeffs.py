@@ -105,7 +105,7 @@ def g(r: float, r_i: float, r_o: float, a: int, gamma: float):
     return g_(r) / N
 
 def S(r_i: float, r_o: float, gamma: float, n_max: int):
-    S = np.zeros((nmax, nmax))
+    S = np.zeros((n_max, n_max))
     
     # Setup integration grid for left Riemannian sum 
     delta = (r_o-r_i)/1000
@@ -127,13 +127,13 @@ def W(r_i: float, r_o: float, gamma: float, n_max: int):
     return scipy.linalg.sqrtm(np.linalg.pinv(S(r_i, r_o, gamma, n_max)))
 
 def radials(r: np.ndarray, r_i: float, r_o: float, gamma: float, n_max: int):
-    W = W(r_i, r_o, gamma, n_max)
+    W_matrix = W(r_i, r_o, gamma, n_max)
     
-    result = np.zeros([n_max] + list(r.shape))
+    result = np.zeros([n_max] + list(r.shape), dtype=np.complex128)
     for k in range(n_max):
         rad = g(r, r_i, r_o, k+1, gamma)
         for j in range(n_max):
-            result[j] += W[j, k] * rad
+            result[j] += W_matrix[j, k] * rad
 
     result[:, r > r_o] = 0
     result[:, r < r_i] = 0
@@ -152,7 +152,54 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
     atom_positions = atoms.get_positions()
     atom_species = atoms.get_chemical_symbols()
     
-    X, Y, Z = density.mesh_3d(scaled=True)
+    X, Y, Z = density.mesh_3d()
+    for i in range(len(atoms)):
+        atom_pos = atom_positions[i]
+        atom_element = atom_species[i]
+        atom_params = params[atom_element]
+
+        # Center coords around atom
+        X_atom, Y_atom, Z_atom = (X - atom_pos[0]), (Y - atom_pos[1]), (Z - atom_pos[2])
+        
+        # Get density points within cutoff radius
+        R_atom = np.sqrt(X_atom**2 + Y_atom**2 + Z_atom**2)
+
+        # Calculate Theta (spherical coordinates)
+        theta_eps = 1e-7
+        Theta_atom = np.arccos(Z_atom/R_atom, where=(R_atom >= theta_eps))
+        Theta_atom[R_atom < theta_eps] = 0
+
+        # Calculate Phi (spherical coordinates)
+        Phi_atom = np.arctan2(Y_atom, X_atom)
+
+        # Apply mask to cut down on density points to evaluate, flattens grid shape
+        mask = (R_atom < atom_params.r_o) * (R_atom >= atom_params.r_i)
+        X_masked, Y_masked, Z_masked = X_atom[mask], Y_atom[mask], Z_atom[mask]
+        R_masked, Theta_masked, Phi_masked = R_atom[mask], Theta_atom[mask], Phi_atom[mask]
+        
+        # Evaluate density at density points
+        rho, V_cell = density.evaluate_at(X_masked, Y_masked, Z_masked)
+
+        # Now get the spherical harmonics for our points
+        angs = []
+        for l in range(atom_params.n_l):
+            angs.append([])
+            for m in range(-l, l+1):
+                angs[l].append(sph_harm(m, l, Phi_masked, Theta_masked))
+
+        # Now get the radial part
+        rads = radials(R_masked, atom_params.r_i, atom_params.r_o, atom_params.gamma, atom_params.n_rad)
+
+        # Finally compute unaligned coefficients
+        coeff = {}
+        for n in range(atom_params.n_rad):
+            for l in range(atom_params.n_l):
+                for m in range(2*l + 1):
+                    coeff[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho) * V_cell
+
+        print(coeff)
+
+
     
 
 def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False):
