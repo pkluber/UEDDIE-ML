@@ -1,5 +1,8 @@
-from density.params import DescriptorParams
 from density.density import Density
+from density.elf import ElF
+from density.geom import get_nncs_angles, get_elfcs_angles, get_casimir
+from density.geom import make_real, rotate_tensor, fold_back_coords, power_spectrum, transform
+from density.params import DescriptorParams
 from ase import Atoms
 from ase.units import Bohr  # To convert between A and Bohrs
 import numpy as np
@@ -140,6 +143,63 @@ def radials(r: np.ndarray, r_i: float, r_o: float, gamma: float, n_max: int):
 
     return result
 
+# Adapted from EDDIE-ML: https://github.com/lowkc/eddie-ml/blob/main/density/real_space.py#482
+def orient_elf(i, elf, all_pos, mode):
+    '''
+    Takes an ELF and orients it according to the rule specified in mode.
+
+    Parameters
+        i: int
+            index of the atom in all_pos
+        elf: ELF
+            ELF to orient
+        all_pos: np.ndarray
+            positions of all atoms in the system
+        mode: str
+            {'elf' : use the ELF algorithm to orient the fingerprint
+            'nn': use the nearest neighbour algorithm
+            'casimir': take Casimir norm of complex tensor
+            'neutral': keep alignment unchanged}
+    
+    Returns
+        ELF
+            oriented version of elf
+    '''
+    if mode == 'elf':
+        angles_getter = get_elfcs_angles
+    elif mode == 'nn':
+        angles_getter = get_nncs_angles
+    elif mode == 'neutral':
+        pass
+    elif mode == 'casimir':
+        pass
+    elif mode == 'power_spectrum':
+        pass
+    else:
+        raise Exception('Unknown!! orientation mode {}'.format(mode))
+
+    if (mode.lower() == 'neutral') or (mode == 'casimir') or (mode == 'power_spectrum'):
+        angles = np.array([0,0,0])
+    else:
+        angles = angles_getter(i, fold_back_coords(i, all_pos, elf.unitcell), elf.value)
+
+    if mode == 'casimir':
+        oriented = get_casimir(elf.value)
+        oriented = np.asarray(list(oriented.values()))
+        elf_oriented = ElF(oriented, angles, elf.basis, elf.species, elf.unitcell, elf.position)
+    elif mode == 'neutral':
+        oriented = make_real(rotate_tensor(elf.value, np.array(angles), True))
+        elf_oriented = ElF(oriented, angles, elf.basis, elf.species, elf.unitcell, elf.position)
+    else:
+        elf_transformed = transform(elf.value)
+        elf_transformed = np.stack([val for val in elf_transformed.values()]).reshape(-1)
+        n_l = elf.basis[f'n_l_{elf.species.lower()}']
+        n = elf.basis[f'n_rad_{elf.species.lower()}']
+        ps = power_spectrum(elf_transformed.reshape(1,-1), n_l-1, n, cgs=None)
+        oriented = ps.reshape(-1)
+        elf_oriented = ElF(oriented, angles, elf.basis, elf.species, elf.unitcell, elf.position)
+    return elf_oriented
+
 def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False) -> bool:
     coeff_path = cube_path.parent / f'{cube_path.stem}.coeff'
     if coeff_path.is_file() and not overwrite:
@@ -191,16 +251,18 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
         rads = radials(R_masked, atom_params.r_i, atom_params.r_o, atom_params.gamma, atom_params.n_rad)
 
         # Finally compute unaligned coefficients
-        coeff = {}
+        coeffs = {}
         for n in range(atom_params.n_rad):
             for l in range(atom_params.n_l):
                 for m in range(2*l + 1):
-                    coeff[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho) * V_cell
+                    coeffs[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho) * V_cell
 
-        print(coeff)
+        elf = ElF(coeffs, [0, 0, 0], params, atom_element, density.unitcell, atom_pos)
 
+        # Compute the aligned elf
+        elf = orient_elf(i, elf, atom_positions, align_method)
 
-    
+        print(elf.value)
 
 def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False):
     for path in data_dir.rglob('*.cube'):
