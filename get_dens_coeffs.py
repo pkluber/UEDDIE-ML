@@ -8,7 +8,7 @@ from ase import Atoms
 from ase.units import Bohr  # To convert between A and Bohrs
 import numpy as np
 import scipy
-from scipy.special import sph_harm
+from scipy.special import sph_harm_y
 
 from pathlib import Path
 from collections import defaultdict
@@ -248,7 +248,7 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
         for l in range(atom_params.n_l):
             angs.append([])
             for m in range(-l, l+1):
-                angs[l].append(sph_harm(m, l, Phi_masked, Theta_masked))
+                angs[l].append(sph_harm_y(l, m, Phi_masked, Theta_masked))
 
         # Now get the radial part
         rads = radials(R_masked, atom_params.r_i, atom_params.r_o, atom_params.gamma, atom_params.n_rad)
