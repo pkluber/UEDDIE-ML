@@ -11,7 +11,7 @@ from sympy.physics.quantum.cg import CG
 # a rank-1 tensor
 T = np.array([[1j,0,1j], [0,np.sqrt(2),0], [1,0,-1]]) * 1/np.sqrt(2)
 ANGLE_THRESHOLD = 1e-10
-NORM_THRESHOLD = 1e-6
+NORM_THRESHOLD = 1e-10
 # Original angle and norm thresholds: 1e-6, 1e-3 - made them smaller since dealing with def. dens.
 def get_max(tensor):
     """
