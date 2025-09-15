@@ -1,5 +1,5 @@
 # UEDDIE-ML
-Unified GPU implementation of Dr. Kaycee Low's EDDIE-ML
+Unified EDDIE-ML, or UEDDIE-ML (pronounced "oodie-ML"), is a transformer model that predicts interaction energies from atomistic deformation density coefficients for both neutral and charged systems. The main innovation is the introduction of a charge scaling factor to scale atomistic contributions in the atomistic approximation based on monomer charge. This produces test metrics less than 1 kcal/mol, thereby reaching chemical accuracy statistically. 
 
 ## Overview
 This repository implements the following scientific computing and machine learning pipeline:
