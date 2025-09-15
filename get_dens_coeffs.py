@@ -187,10 +187,10 @@ def orient_elf(i, elf, all_pos, mode):
     if mode == 'casimir':
         oriented = get_casimir(elf.value)
         oriented = np.asarray(list(oriented.values()))
-        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position)
+        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position, elf.charge)
     elif mode == 'neutral':
         oriented = make_real(rotate_tensor(elf.value, np.array(angles), True))
-        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position)
+        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position, elf.charge)
     else:
         elf_transformed = transform(elf.value)
         elf_transformed = np.stack([val for val in elf_transformed.values()]).reshape(-1)
@@ -198,7 +198,7 @@ def orient_elf(i, elf, all_pos, mode):
         n = elf.params.n_rad
         ps = power_spectrum(elf_transformed.reshape(1,-1), n_l-1, n, cgs=None)
         oriented = ps.reshape(-1)
-        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position)
+        elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position, elf.charge)
     return elf_oriented
 
 def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False) -> bool:
@@ -260,11 +260,15 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
                 for m in range(2*l + 1):
                     coeffs[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho) * V_cell
 
-        elf = ElF(coeffs, [0, 0, 0], atom_params, atom_element, density.unitcell, atom_pos)
+        elf = ElF(value=coeffs, angles=[0, 0, 0], params=atom_params, species=atom_element, 
+                  unitcell=density.unitcell, position=atom_pos, 
+                  charge=get_charge_from_position(cube_path.parent / f'{cube_path.stem}.xyz', atom_pos))
 
         # Compute the aligned elf
         elf = orient_elf(i, elf, atom_positions, align_method)
         print(elf.value)
+        
+        # Add to coeff file for writing
         coeff_file.add_elf(elf)
 
     coeff_file.save()
@@ -281,9 +285,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Get the deformation density coefficients for all deformation density .cube files in a folder.')
     parser.add_argument('--align', type=str, default=DEFAULT_ALIGN_METHOD, help='ElF alignment method')
-    parser.add_argument('--path', type=str, default='data', help='Path containing cube files.')
+    parser.add_argument('--path', type=str, default='data', help='Path containing .cube files.')
     parser.add_argument('--input', type=str, default='', help='Input file to use for generating a single .coeff file')
-    parser.add_argument('--overwrite', type=bool, default=False, help='Whether to overwrite pre-existing .cube/.rho files')
+    parser.add_argument('--overwrite', type=bool, default=False, help='Whether to overwrite pre-existing .coeff files')
 
     args = parser.parse_args()
 

@@ -22,6 +22,8 @@ class ElF():
             unitcell of the system (used by fold_back_coords during alingment)
         position: np.ndarray (3,)
             position of the atom in the original xyz file
+        charge: int
+            charge of the monomer the atom resides in
 
     """
     value: dict | np.ndarray
@@ -30,3 +32,4 @@ class ElF():
     species: str
     unitcell: np.ndarray
     position: np.ndarray
+    charge: int
