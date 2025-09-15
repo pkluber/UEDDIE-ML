@@ -160,3 +160,6 @@ psi.*
 
 # models folder
 models
+
+# joblib dump files
+*.joblib
