@@ -8,4 +8,4 @@ Unified GPU implementation of Dr. Kaycee Low's EDDIE-ML
 - `get_energies.py` requires Psi4 and the `psi4` Python package
 - `train.py` requires `numpy`, `h5py`, `scikit-learn`, `joblib`, `torch`, `matplotlib` 
 
-You may need different virutal environments to run each script, because oftentimes Psi4 and PySCF conflict.
+You may need different environments to run each script, because oftentimes Psi4, PySCF, and PyTorch conflict, especially in a HPC module environment.
