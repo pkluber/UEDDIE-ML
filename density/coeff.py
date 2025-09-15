@@ -16,7 +16,13 @@ class CoeffWrapper:
             self.load()
 
     def load(self):
-        pass # TODO 
+        with h5py.File(self.path, 'r') as fd:
+            values = fd['value'][:]
+            angles = fd['angles'][:]
+            species = fd['species'][:]
+            print(species)
+            positions = fd['position'][:]
+            charges = fd['charge'][:]
 
     def add_elf(self, elf: ElF):
         self.elfs.append(elf)

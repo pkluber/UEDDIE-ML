@@ -1,5 +1,9 @@
-import numpy as np
+from .params import DescriptorParams
 
+import numpy as np
+from dataclasses import dataclass
+
+@dataclass
 class ElF():
     """ Class defining the electronic descriptors used by MLCF. ElF stands for ELectronic Fingerprint
 
@@ -20,13 +24,9 @@ class ElF():
             position of the atom in the original xyz file
 
     """
-    def __init__(self, value, angles, params, species, unitcell, position):
-        self.value = value
-        self.angles = angles
-        self.params = params
-        self.species = species
-        self.unitcell = unitcell
-
-        if isinstance(position, np.ndarray) and position.shape == (1,3):
-            position = position[0, :]
-        self.position = position
+    value: dict | np.ndarray
+    angles: np.ndarray
+    params: DescriptorParams
+    species: str
+    unitcell: np.ndarray
+    position: np.ndarray
