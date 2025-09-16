@@ -1,10 +1,11 @@
 from density.coeff import CoeffWrapper
-from density.density import Density
+from density.density import Density, CubeDensity, BeckeDensity
 from density.elf import ElF
 from density.geom import get_nncs_angles, get_elfcs_angles, get_casimir
 from density.geom import make_real, rotate_tensor, fold_back_coords, power_spectrum, transform
 from density.params import DescriptorParams
 from density.utils import get_charge_from_position
+import ase.io
 from ase import Atoms
 from ase.units import Bohr  # To convert between A and Bohrs
 import numpy as np
@@ -84,18 +85,37 @@ def _read_cube_data(f: TextIOWrapper, grid: np.ndarray) -> np.ndarray:
             counter += 1
     return data
 
-def get_density(cube_path: Path) -> Density:
+def get_density_cube(cube_path: Path) -> CubeDensity:
     with open(cube_path) as fd:
         origin, _, _, cell, grid = _read_cube_header(fd)
         data = _read_cube_data(fd, grid)
-        return Density(data, cell*Bohr, grid, origin*Bohr)
+        return CubeDensity(data, cell*Bohr, grid, origin*Bohr)
 
-def get_atoms(cube_path: Path) -> Atoms:
+def get_atoms_cube(cube_path: Path) -> Atoms:
     with open(cube_path) as fd:
         _, coordinates, numbers, _, _ = _read_cube_header(fd)
     coordinates *= Bohr # Get atom positions in Ang
     atoms = Atoms(numbers, coordinates)
     return atoms
+
+def get_density_rho(rho_path: Path) -> BeckeDensity:
+    with open(rho_path) as fd:
+        rho_array = np.loadtxt(rho_path)
+        rho, quadrature, X, Y, Z = rho_array.T
+
+        # Convert to Angstroms from Bohr
+        quadrature *= Bohr**3
+        X *= Bohr
+        Y *= Bohr
+        Z *= Bohr
+
+        return BeckeDensity(rho, quadrature, X, Y, Z)
+
+def get_atoms_rho(rho_path: Path) -> Atoms:
+    xyz_path = rho_path.parent / f'{rho_path.stem}.xyz'
+    with open(xyz_path) as fd:
+        monomers = ase.io.read(fd, format='xyz', index=':')
+        return monomers[0] + monomers[1]
 
 def g(r: float, r_i: float, r_o: float, a: int, gamma: float):
     def g_(r):
@@ -202,22 +222,29 @@ def orient_elf(i, elf, all_pos, mode):
         elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position, elf.charge)
     return elf_oriented
 
-def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False) -> bool:
-    coeff_path = cube_path.parent / f'{cube_path.stem}.coeff'
+def calculate_dens_coeffs(dens_path: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, use_rho: bool = False, overwrite: bool = False) -> bool:
+    coeff_path = dens_path.parent / f'{dens_path.stem}.coeff'
     if coeff_path.is_file() and not overwrite:
-        print(f'Found .coeff file for {cube_path.name}, not overwriting...')
+        print(f'Found .coeff file for {dens_path.name}, not overwriting...')
         return True
 
-    print(f'Calculating deformation density coefficients for {cube_path.name}...')
+    print(f'Calculating deformation density coefficients for {dens_path.name}...')
     
-    density, atoms = get_density(cube_path), get_atoms(cube_path)
+    if not use_rho:
+        density, atoms = get_density_cube(dens_path), get_atoms_cube(dens_path)
+    else:
+        density, atoms = get_density_rho(dens_path), get_atoms_rho(dens_path)
+
     atom_positions = atoms.get_positions()
     atom_species = atoms.get_chemical_symbols()
     
     coeff_file = CoeffWrapper(coeff_path)
 
-    X, Y, Z = density.mesh_3d(scaled=True)
-    Xm, Ym, Zm = density.mesh_3d(scaled=False)
+    X, Y, Z = density.mesh_3d()
+    if not use_rho:
+        Xm, Ym, Zm = density.get_indices()
+    else:
+        indices = density.get_indices()
 
     for i in range(len(atoms)):
         atom_pos = atom_positions[i]
@@ -242,10 +269,16 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
         mask = (R_atom < atom_params.r_o) * (R_atom >= atom_params.r_i)
         X_masked, Y_masked, Z_masked = X_atom[mask], Y_atom[mask], Z_atom[mask]
         R_masked, Theta_masked, Phi_masked = R_atom[mask], Theta_atom[mask], Phi_atom[mask]
-        Xm_masked, Ym_masked, Zm_masked = Xm[mask], Ym[mask], Zm[mask]
+        if not use_rho:
+            Xm_masked, Ym_masked, Zm_masked = Xm[mask], Ym[mask], Zm[mask]
+        else:
+            indices_masked = indices[mask]
         
         # Evaluate density at density points
-        rho, V_cell = density.evaluate_at(Xm_masked, Ym_masked, Zm_masked, scaled=False)
+        if not use_rho:
+            rho, V_cell = density.evaluate_at_indices((Xm_masked, Ym_masked, Zm_masked))
+        else:
+            rho, V_cell = density.evaluate_at_indices(indices_masked)
 
         # Now get the spherical harmonics for our points
         angs = []
@@ -262,11 +295,11 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
         for n in range(atom_params.n_rad):
             for l in range(atom_params.n_l):
                 for m in range(2*l + 1):
-                    coeffs[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho) * V_cell
+                    coeffs[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho * V_cell)
 
         elf = ElF(value=coeffs, angles=[0, 0, 0], params=atom_params, species=atom_element, 
                   unitcell=density.unitcell, position=atom_pos, 
-                  charge=get_charge_from_position(cube_path.parent / f'{cube_path.stem}.xyz', atom_pos))
+                  charge=get_charge_from_position(dens_path.parent / f'{dens_path.stem}.xyz', atom_pos))
 
         # Compute the aligned elf
         elf = orient_elf(i, elf, atom_positions, align_method)
@@ -278,10 +311,11 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
     coeff_file.save()
     print(f'Successfully created {coeff_path.name}!')
 
-def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False):
-    for path in data_dir.rglob('*.cube'):
-        if path.is_file() and path.suffix == '.cube':
-            calculate_dens_coeffs(path, params, align_method, overwrite=overwrite)
+def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, use_rho: bool = False, overwrite: bool = False):
+    ext = '.cube' if not use_rho else '.rho'
+    for path in data_dir.rglob(f'*{ext}'):
+        if path.is_file() and path.suffix == ext:
+            calculate_dens_coeffs(path, params, align_method, use_rho=use_rho, overwrite=overwrite)
     
 
 if __name__ == '__main__':
@@ -289,6 +323,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Get the deformation density coefficients for all deformation density .cube files in a folder.')
     parser.add_argument('--align', type=str, default=DEFAULT_ALIGN_METHOD, help='ElF alignment method')
+    parser.add_argument('--rho', type=bool, default=False, help='Whether to read .rho files instead of .cube files')
     parser.add_argument('--path', type=str, default='data', help='Path containing .cube files.')
     parser.add_argument('--input', type=str, default='', help='Input file to use for generating a single .coeff file')
     parser.add_argument('--overwrite', type=bool, default=False, help='Whether to overwrite pre-existing .coeff files')
@@ -296,7 +331,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if len(args.input) > 0:
-        calculate_dens_coeffs(Path(args.input), align_method=args.align, overwrite=args.overwrite)
+        calculate_dens_coeffs(Path(args.input), align_method=args.align, use_rho=args.rho, overwrite=args.overwrite)
     else:
-        calculate_dens_coeffs_all(Path(args.path), align_method=args.align, overwrite=args.overwrite)
+        calculate_dens_coeffs_all(Path(args.path), align_method=args.align, use_rho=args.rho, overwrite=args.overwrite)
 

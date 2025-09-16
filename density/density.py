@@ -1,8 +1,26 @@
 import numpy as np
 from typing import Tuple
+from abc import ABC, abstractmethod
+
+class Density(ABC):
+    @abstractmethod
+    def get_indices(self) -> Tuple[np.ndarray, ...] | np.ndarray:
+        pass
+
+    @abstractmethod
+    def mesh_3d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        pass
+
+    @abstractmethod
+    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray) ->  Tuple[np.ndarray, float]:
+        pass
+
+    @abstractmethod
+    def evaluate_at_indices(self, indices: Tuple[np.ndarray, ...] | np.ndarray) -> Tuple[np.ndarray, float]:
+        pass
 
 # Adapted from MLCF: https://github.com/semodi/mlcf/blob/master/mlc_func/elf/density.py
-class Density():
+class CubeDensity(Density):
     """ Class defining the density on a real space grid
 
     Parameters
@@ -31,27 +49,24 @@ class Density():
         self.U = np.array(self.unitcell)  # Matrix to go from mesh coordinates to real space
         for i in range(3):
             self.U[i,:] = self.U[i,:] / self.grid[i]
+        
+        self.quadrature = np.linalg.det(self.U)
     
-    def mesh_3d(self, scaled: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get_indices(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        xm, ym, zm = [list(range(-self.grid[i], self.grid[i]+1)) for i in range(3)]
+        return np.meshgrid(xm, ym, zm, indexing='ij')
+
+    def mesh_3d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Returns a 3d mesh 
 
         Returns
         -------
         
-        if scaled:
         X, Y, Z: tuple of np.ndarray
             defines mesh in real space
-
-        otherwise:
-        Xm, Ym, Zm: tuple of np.ndarray
-            defines the mesh indices
-        """ 
-        xm, ym, zm = [list(range(-self.grid[i], self.grid[i]+1)) for i in range(3)]
-        
-        Xm, Ym, Zm = np.meshgrid(xm, ym, zm, indexing='ij')
-        if not scaled:
-            return Xm, Ym, Zm
+        """  
+        Xm, Ym, Zm = self.get_indices()
         
         Rm = np.concatenate([Xm.reshape(*Xm.shape,1),
                              Ym.reshape(*Xm.shape,1),
@@ -63,14 +78,12 @@ class Density():
         Z = R[2,:,:,:] + self.origin[2]
         
         return X, Y, Z 
+    
+    def evaluate_at_indices(self, indices: Tuple[np.ndarray, ...]) -> Tuple[np.ndarray, float]:
+        Xm, Ym, Zm = indices
+        return self.rho[Xm, Ym, Zm], self.quadrature
 
-    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray, scaled: bool = True) -> Tuple[np.ndarray, float]:
-        quadrature = np.linalg.det(self.U)
-        
-        if not scaled:
-            Xm, Ym, Zm = X, Y, Z
-            return self.rho[Xm, Ym, Zm], quadrature
-            
+    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> Tuple[np.ndarray, float]: 
         R = np.concatenate([X.reshape(*X.shape, 1), Y.reshape(*Y.shape, 1), Z.reshape(*Z.shape, 1)], axis=-1)
         R -= self.origin
 
@@ -88,4 +101,25 @@ class Density():
 
         Xm, Ym, Zm = Rm[0,...], Rm[1,...], Rm[2,...]
 
-        return self.rho[Xm, Ym, Zm], quadrature
+        return self.rho[Xm, Ym, Zm], self.quadrature
+
+class BeckeDensity(Density):
+    def __init__(self, rho: np.ndarray, quadrature: np.ndarray, X: np.ndarray, Y: np.ndarray, Z: np.ndarray):
+        self.rho = rho
+        self.quadrature = quadrature
+        self.X, self.Y, self.Z = X, Y, Z
+
+        # TODO remove unitcell dependence from orient_elf and ElF
+        self.unitcell = np.eye(3)
+
+    def get_indices(self) -> np.ndarray:
+        return np.array(list(range(len(self.rho))))
+
+    def mesh_3d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        return self.X, self.Y, self.Z
+
+    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray):
+        pass #TODO implement using an octree or other BVH
+
+    def evaluate_at_indices(self, indices: np.ndarray):
+        return self.rho[indices], self.quadrature[indices]
