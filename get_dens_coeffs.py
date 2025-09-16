@@ -4,6 +4,7 @@ from density.elf import ElF
 from density.geom import get_nncs_angles, get_elfcs_angles, get_casimir
 from density.geom import make_real, rotate_tensor, fold_back_coords, power_spectrum, transform
 from density.params import DescriptorParams
+from density.utils import get_charge_from_position
 from ase import Atoms
 from ase.units import Bohr  # To convert between A and Bohrs
 import numpy as np
@@ -215,7 +216,9 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
     
     coeff_file = CoeffWrapper(coeff_path)
 
-    X, Y, Z = density.mesh_3d()
+    X, Y, Z = density.mesh_3d(scaled=True)
+    Xm, Ym, Zm = density.mesh_3d(scaled=False)
+
     for i in range(len(atoms)):
         atom_pos = atom_positions[i]
         atom_element = atom_species[i]
@@ -239,9 +242,10 @@ def calculate_dens_coeffs(cube_path: Path, params: dict[str, DescriptorParams] =
         mask = (R_atom < atom_params.r_o) * (R_atom >= atom_params.r_i)
         X_masked, Y_masked, Z_masked = X_atom[mask], Y_atom[mask], Z_atom[mask]
         R_masked, Theta_masked, Phi_masked = R_atom[mask], Theta_atom[mask], Phi_atom[mask]
+        Xm_masked, Ym_masked, Zm_masked = Xm[mask], Ym[mask], Zm[mask]
         
         # Evaluate density at density points
-        rho, V_cell = density.evaluate_at(X_masked + atom_pos[0], Y_masked + atom_pos[1], Z_masked + atom_pos[2])
+        rho, V_cell = density.evaluate_at(Xm_masked, Ym_masked, Zm_masked, scaled=False)
 
         # Now get the spherical harmonics for our points
         angs = []

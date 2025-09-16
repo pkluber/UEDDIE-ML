@@ -32,19 +32,26 @@ class Density():
         for i in range(3):
             self.U[i,:] = self.U[i,:] / self.grid[i]
     
-    def mesh_3d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def mesh_3d(self, scaled: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Returns a 3d mesh 
 
         Returns
         -------
-
+        
+        if scaled:
         X, Y, Z: tuple of np.ndarray
             defines mesh in real space
+
+        otherwise:
+        Xm, Ym, Zm: tuple of np.ndarray
+            defines the mesh indices
         """ 
         xm, ym, zm = [list(range(-self.grid[i], self.grid[i]+1)) for i in range(3)]
         
         Xm, Ym, Zm = np.meshgrid(xm, ym, zm, indexing='ij')
+        if not scaled:
+            return Xm, Ym, Zm
         
         Rm = np.concatenate([Xm.reshape(*Xm.shape,1),
                              Ym.reshape(*Xm.shape,1),
@@ -57,7 +64,13 @@ class Density():
         
         return X, Y, Z 
 
-    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> Tuple[np.ndarray, float]:
+    def evaluate_at(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray, scaled: bool = True) -> Tuple[np.ndarray, float]:
+        quadrature = np.linalg.det(self.U)
+        
+        if not scaled:
+            Xm, Ym, Zm = X, Y, Z
+            return self.rho[Xm, Ym, Zm], quadrature
+            
         R = np.concatenate([X.reshape(*X.shape, 1), Y.reshape(*Y.shape, 1), Z.reshape(*Z.shape, 1)], axis=-1)
         R -= self.origin
 
@@ -73,10 +86,6 @@ class Density():
         if R.ndim == 2:
             Rm = Rm.T
 
-        Xm = Rm[0,...]
-        Ym = Rm[1,...]
-        Zm = Rm[2,...]
-
-        quadrature = np.linalg.det(self.U)
+        Xm, Ym, Zm = Rm[0,...], Rm[1,...], Rm[2,...]
 
         return self.rho[Xm, Ym, Zm], quadrature
