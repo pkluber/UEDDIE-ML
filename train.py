@@ -64,7 +64,7 @@ class BalancedLoss(nn.Module):
     def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         abs_err = self.mse_loss(y_pred, y_true)
         rel_err = self.mse_loss(y_pred / y_true, torch.ones(*y_pred.shape))
-        return torch.max(abs_err, rel_err)
+        return torch.max(abs_err, self.scale * rel_err)
 
 
 loss_function = BalancedLoss()
