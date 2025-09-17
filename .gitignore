@@ -130,9 +130,6 @@ dmypy.json
 
 # Output files
 output*
-*.dat
-*.cube
-*.png
 
 # Unpacked data
 data/bcurves
@@ -152,14 +149,11 @@ logs
 # Psi4 scratch files 
 psi.*
 
-# PyTorch model .pt
-*.pt
-
 # NumPy array files
 *.npy
 
 # models folder
 models
 
-# joblib dump files
-*.joblib
+# Cumulative variance plot
+cumvar.png
