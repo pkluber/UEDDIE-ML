@@ -19,7 +19,6 @@ model.eval()
 
 # Load the dataset and scalers
 from dataset import UEDDIEDataset
-
 dataset = UEDDIEDataset()
 scaler_x, scaler_y = dataset.load_and_apply_scalers()
 
