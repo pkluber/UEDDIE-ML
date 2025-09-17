@@ -55,7 +55,19 @@ if len(devices) == 1:
     model.to(device) 
 
 # Loss and stuff
-loss_function = nn.MSELoss()
+class BalancedLoss(nn.Module):
+    def __init__(self, relative_error_scale: float = 1.0):
+        super().__init__()
+        self.scale = relative_error_scale
+        self.mse_loss = nn.MSELoss()
+    
+    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
+        abs_err = self.mse_loss(y_pred, y_true)
+        rel_err = self.mse_loss(y_pred / y_true, torch.ones(*y_pred.shape))
+        return torch.max(abs_err, rel_err)
+
+
+loss_function = BalancedLoss()
 optimizer = optim.AdamW(list(model.parameters()), lr=1e-5)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=60)
 
