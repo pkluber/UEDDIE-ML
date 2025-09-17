@@ -264,6 +264,11 @@ class UEDDIENetwork(nn.Module):
         for c in range(-1, 2):
             self.charge_subnets[str(c)].to(torch.device(self.devices_c[str(c)]))
 
+    def disable_multi_gpu(self, device: torch.device):
+        self.devices_e = {'0': device, '1': device, '2': device, '3': device}
+        self.devices_c = {'-1': device, '0': device, '1': device}
+        self.to(device)
+    
     def forward(self, X: torch.Tensor, E: torch.Tensor, C: torch.Tensor) -> torch.Tensor:
         # Sanitize E, C, make sure they're int
         E = E.to(torch.int64)

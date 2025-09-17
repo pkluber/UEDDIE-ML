@@ -154,3 +154,6 @@ models
 
 # Cumulative variance plot
 cumvar.png
+
+# Dissociation plots
+dissociation.png

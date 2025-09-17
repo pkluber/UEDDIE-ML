@@ -73,10 +73,7 @@ from model import UEDDIENetwork
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 model = torch.load('model.pt', weights_only=False, map_location=device)
-# Hacky workaround until i fix this
-model.devices_e = {'0': 'cpu', '1': 'cpu', '2': 'cpu', '3': 'cpu'}
-model.devices_c = {'-1': 'cpu', '0': 'cpu', '1': 'cpu'}
-
+model.disable_multi_gpu(device)
 model.eval()
 
 dataset = UEDDIEDataset()
