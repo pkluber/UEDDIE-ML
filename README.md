@@ -16,6 +16,6 @@ This repository implements the following scientific computing and machine learni
 - `get_dens_coeffs.py` requires `numpy`, `ase`, `scipy`, `spherical_functions`, `sympy`, and `h5py`
 - `make_dataset.py` requires `numpy`, `h5py`, `matplotlib`, and `scikit-learn`
 - `get_energies.py` requires Psi4 and the `psi4` Python package
-- `train.py` requires `numpy`, `h5py`, `scikit-learn`, `joblib`, `torch`, `matplotlib` 
+- `train.py` requires `numpy`, `h5py`, `scikit-learn`, `joblib`, `torch`, `matplotlib`, and 'seaborn' 
 
 You may need different environments to run each script, because oftentimes Psi4, PySCF, and PyTorch conflict, especially in a HPC module environment.

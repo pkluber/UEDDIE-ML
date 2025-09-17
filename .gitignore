@@ -157,3 +157,7 @@ cumvar.png
 
 # Dissociation plots
 dissociation.png
+
+# Error plots
+test_errors.png
+test_relative_errors.png
