@@ -118,31 +118,6 @@ def plot_errors(ies_pred: np.ndarray, ies: np.ndarray):
     plt.savefig('test_errors.png', dpi=300)
     plt.close()
 
-def plot_relative_errors(ies_pred: np.ndarray, ies: np.ndarray): 
-    percent_errors = np.abs((ies_pred - ies) / ies) * 100
-    
-    # Bins should be every 100%
-    bin_size = 100
-    bin_edges = np.arange(np.floor(np.min(percent_errors) / bin_size) * bin_size, np.ceil(np.max(percent_errors) / bin_size) * bin_size + bin_size, bin_size)
-
-    plt.hist(percent_errors, bins=bin_edges, edgecolor='black', density=False)
-
-    plt.xlabel('Percent Errors')
-    plt.xlim(np.floor(np.min(percent_errors)), np.ceil(np.max(percent_errors)) + bin_size)
-
-    x_tick_length = 1000
-    plt.xticks(np.arange(np.floor(np.min(percent_errors)/x_tick_length)*x_tick_length, np.ceil(np.max(percent_errors)/x_tick_length)*x_tick_length + x_tick_length, x_tick_length))
-    ax = plt.gca()
-    ax.xaxis.set_major_formatter(mtick.PercentFormatter(xmax=100.0))
-
-    plt.grid(which='major', linewidth=1.0, alpha=0.5)
-    plt.minorticks_on()
-    plt.grid(which='minor', linewidth=0.5, linestyle=':',  alpha=0.5)
-    plt.ylabel('Frequency')
-    plt.title('Histogram of Relative Errors')
-    plt.savefig('test_relative_errors.png', dpi=300)
-    plt.close()
-
 def test(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | None = None,
          scaler_y: RobustScaler | None = None) -> Tuple[np.ndarray, np.ndarray]:
     ies_pred, ies = predict(model=model, test_dataset=test_dataset, scaler_y=scaler_y)
@@ -155,9 +130,6 @@ def test(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | None 
 
     # Visualize absolute errors
     plot_errors(ies_pred, ies)
-
-    # Visualize relative errors
-    plot_relative_errors(ies_pred, ies)
 
 if __name__ == '__main__':
     test()
