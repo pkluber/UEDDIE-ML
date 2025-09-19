@@ -6,15 +6,15 @@ from density.coeff import CoeffWrapper
 
 import numpy as np
 from joblib import load
+from pathlib import Path
 
-def evaluate(xyz_path: Path, charges: Tuple[int, int, int] = (0, 0, 0), uses_pca: bool = True):
+def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool = True):
     # Generate .rho file
-    #TODO pass in charges
-    dimer_cube_difference(xyz_path, 'LDA' grid_type='becke', overwrite=True)
+    dimer_cube_difference(xyz_path, 'LDA' grid_type='becke', overwrite=True, charges=charges)
     
     # Generate .coeff file
     dens_path = xyz_path.parent / f'{xyz_path.stem}.rho'
-    calculate_dens_coeffs(dens_path)
+    calculate_dens_coeffs(dens_path, charges=charges)
 
     # Load .coeff file
     coeffs_path = xyz_path.parent / f'{xyz_path.stem}.coeff'
@@ -80,4 +80,13 @@ def evaluate(xyz_path: Path, charges: Tuple[int, int, int] = (0, 0, 0), uses_pca
 if __name__ == '__main__':
     import argparse
 
-    #TODO
+    parser = argparse.ArgumentParser(description='Evaluate the model for an out-of-distribution system.')
+    parser.add_argument('--input', type=str, help='Input file to use for evaluating the model')
+    parser.add_argument('--charges', nargs=2, type=int, default=(0, 0), help='Charges of the monomers')
+    parser.add_argument('--pca', type=bool, default=True, help='Whether PCA needs to be applied')
+
+    args = parser.parse_args()
+
+    evaluate(Path(args.input), charges=args.charges, uses_pca=args.pca)
+
+

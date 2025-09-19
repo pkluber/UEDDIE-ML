@@ -59,9 +59,13 @@ def get_mol(atom: str, basis: str, charge: int) -> gto.Mole:
 
     return mol
 
-def get_monomers_and_dimer_mol(xyz_path: Path, basis: str = 'cc-pVTZ') -> Tuple[gto.Mole, gto.Mole, gto.Mole]:
+def get_monomers_and_dimer_mol(xyz_path: Path, basis: str = 'cc-pVTZ', charges: Tuple[int, int] | None = None) -> Tuple[gto.Mole, gto.Mole, gto.Mole]:
     atom_m1, atom_m2, atom_dimer = get_atom_monomers_and_dimer(xyz_path)
-    charge_m1, charge_m2, charge_dimer = get_charges(xyz_path.name)
+    if charges is None:
+        charge_m1, charge_m2, charge_dimer = get_charges(xyz_path.name)
+    else:
+        charge_m1, charge_m2 = charges
+        charge_dimer = charge_m1 + charge_m2
     
     return get_mol(atom_m1, basis, charge_m1), get_mol(atom_m2, basis, charge_m2), get_mol(atom_dimer, basis, charge_dimer)
 
@@ -195,7 +199,7 @@ def generate_density(grid: Cube | NonuniformGrid, mol: gto.Mole, dm: np.ndarray)
 
 def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, 
                           extension: float = DEFAULT_EXTENSION, grid_type: str = DEFAULT_GRID, 
-                          overwrite: bool = False) -> bool:
+                          overwrite: bool = False, charges: Tuple[int, int] | None = None) -> bool:
     grid_type = grid_type.strip().lower()
     if grid_type not in ['uniform', 'becke']:
         raise ValueError('Grid types currently implemented: Uniform and Becke')
@@ -213,7 +217,7 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
         return True
 
     print(f'Generating deformation density for {xyz_path.name}...')
-    mol_m1, mol_m2, mol_dimer = get_monomers_and_dimer_mol(xyz_path)
+    mol_m1, mol_m2, mol_dimer = get_monomers_and_dimer_mol(xyz_path, charges=charges)
     
     method = method.strip().upper()
     if method not in ['HF', 'MP2', 'PBE0', 'LDA']:

@@ -34,10 +34,11 @@ def get_charges(filename: str) -> Tuple[int, int, int]:
         else:
             return 1, -1, 0
 
-def get_charge_from_position(xyz_path: Path, position: np.ndarray) -> int | None:
+def get_charge_from_position(xyz_path: Path, position: np.ndarray, charges: Tuple[int, int] | None = None) -> int | None:
     position = np.array(position)
 
-    charges = get_charges(xyz_path.name)
+    if charges is None:
+        charges = get_charges(xyz_path.name)
 
     with open(xyz_path) as fd:
         lines = fd.readlines() # note preserves \n characters 

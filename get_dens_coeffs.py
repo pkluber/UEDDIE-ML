@@ -222,7 +222,10 @@ def orient_elf(i, elf, all_pos, mode):
         elf_oriented = ElF(oriented, angles, elf.params, elf.species, elf.unitcell, elf.position, elf.charge)
     return elf_oriented
 
-def calculate_dens_coeffs(dens_path: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, use_rho: bool = False, overwrite: bool = False) -> bool:
+def calculate_dens_coeffs(dens_path: Path, 
+                          params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, 
+                          align_method: str = DEFAULT_ALIGN_METHOD, use_rho: bool = False, 
+                          overwrite: bool = False, charges: Tuple[int, int] | None = None) -> bool:
     coeff_path = dens_path.parent / f'{dens_path.stem}.coeff'
     if coeff_path.is_file() and not overwrite:
         print(f'Found .coeff file for {dens_path.name}, not overwriting...')
@@ -297,9 +300,11 @@ def calculate_dens_coeffs(dens_path: Path, params: dict[str, DescriptorParams] =
                 for m in range(2*l + 1):
                     coeffs[f'{n},{l},{m-l}'] = np.sum(angs[l][m]*rads[n]*rho * V_cell)
 
+        charge = get_charge_from_position(dens_path.parent / f'{dens_path.stem}.xyz', 
+                                          atom_pos, charges=charges)
         elf = ElF(value=coeffs, angles=[0, 0, 0], params=atom_params, species=atom_element, 
                   unitcell=density.unitcell, position=atom_pos, 
-                  charge=get_charge_from_position(dens_path.parent / f'{dens_path.stem}.xyz', atom_pos))
+                  charge=)
 
         # Compute the aligned elf
         elf = orient_elf(i, elf, atom_positions, align_method)
