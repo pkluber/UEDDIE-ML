@@ -304,7 +304,7 @@ def calculate_dens_coeffs(dens_path: Path,
                                           atom_pos, charges=charges)
         elf = ElF(value=coeffs, angles=[0, 0, 0], params=atom_params, species=atom_element, 
                   unitcell=density.unitcell, position=atom_pos, 
-                  charge=)
+                  charge=charge)
 
         # Compute the aligned elf
         elf = orient_elf(i, elf, atom_positions, align_method)

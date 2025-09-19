@@ -7,10 +7,11 @@ from density.coeff import CoeffWrapper
 import numpy as np
 from joblib import load
 from pathlib import Path
+from typing import Tuple
 
 def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool = True):
     # Generate .rho file
-    dimer_cube_difference(xyz_path, 'LDA' grid_type='becke', overwrite=True, charges=charges)
+    dimer_cube_difference(xyz_path, 'LDA', grid_type='becke', overwrite=True, charges=charges)
     
     # Generate .coeff file
     dens_path = xyz_path.parent / f'{xyz_path.stem}.rho'
