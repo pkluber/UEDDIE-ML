@@ -15,7 +15,7 @@ def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool =
     
     # Generate .coeff file
     dens_path = xyz_path.parent / f'{xyz_path.stem}.rho'
-    calculate_dens_coeffs(dens_path, charges=charges)
+    calculate_dens_coeffs(dens_path, use_rho=True, overwrite=True, charges=charges)
 
     # Load .coeff file
     coeffs_path = xyz_path.parent / f'{xyz_path.stem}.coeff'

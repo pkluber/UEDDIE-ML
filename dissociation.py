@@ -4,6 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Generate dissociation curve for a given system.')
 parser.add_argument('--input', type=str, default='S66_01WaterWater', help='Input system name')
+parser.add_argument('--title', type=str, default=None, help='Title for plot')
 
 args = parser.parse_args()
 
@@ -115,5 +116,11 @@ plot_and_fit(xs_model, ys_model, 'blue', 'lightblue', should_fit=False)
 
 plt.xlabel('Distance (A)')
 plt.ylabel('Interaction Energy (kcal/mol)')
-plt.title(f'Dissociation of {args.input}')
+
+if args.title is None:
+    title = args.input
+else:
+    title = args.title
+plt.title(f'Dissociation of {title}')
+
 plt.savefig('dissociation.png')
