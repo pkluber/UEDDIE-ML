@@ -12,9 +12,6 @@ class CoeffWrapper:
         self.path = path
         self.elfs = []
 
-        if path.is_file() and path.suffix == '.coeff':
-            self.load()
-
     def add_elf(self, elf: ElF):
         self.elfs.append(elf)
 

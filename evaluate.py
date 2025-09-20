@@ -5,6 +5,7 @@ from make_dataset import make_dataset
 from density.coeff import CoeffWrapper
 
 import numpy as np
+import torch
 from joblib import load
 from pathlib import Path
 from typing import Tuple
@@ -20,6 +21,7 @@ def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool =
     # Load .coeff file
     coeffs_path = xyz_path.parent / f'{xyz_path.stem}.coeff'
     coeffs = CoeffWrapper(coeffs_path)
+    coeffs.load()
  
     # Create X, E, C needed to evaluate model
     species_conversion = {'H': 0, 'C': 1, 'N': 2, 'O': 3}
@@ -76,7 +78,7 @@ def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool =
         y_pred = y_pred.reshape(1, 1)
         ie_model = scaler_y.inverse_transform(y_pred)[0, 0] * 627.509
     
-    print('Predicted interaction energy (kcal/mol): {ie_model}') 
+    print(f'Predicted interaction energy (kcal/mol): {ie_model}') 
     
 if __name__ == '__main__':
     import argparse

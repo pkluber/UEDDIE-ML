@@ -58,6 +58,7 @@ def make_dataset(data_dir: Path, output_path: Path, overwrite: bool = True, pca:
     for path in data_dir.rglob('*.coeff'):
         if path.is_file() and path.suffix == '.coeff':
             coeff_file = CoeffWrapper(path)
+            coeff_file.load()
             elfs = coeff_file.get_elfs()
             system = coeff_file.get_system_name()
 
