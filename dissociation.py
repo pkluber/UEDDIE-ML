@@ -118,9 +118,9 @@ plt.xlabel('Distance (A)')
 plt.ylabel('Interaction Energy (kcal/mol)')
 
 if args.title is None:
-    title = args.input
+    title = f'Dissociation of {args.input}'
 else:
     title = args.title
-plt.title(f'Dissociation of {title}')
+plt.title(title)
 
 plt.savefig('dissociation.png')
