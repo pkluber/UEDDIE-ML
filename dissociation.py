@@ -56,15 +56,15 @@ def fit(xs: np.ndarray, ys: np.ndarray, degree: int = 7):
 # Start plotting!
 import matplotlib.pyplot as plt
 
-def plot_and_fit(xs: np.ndarray, ys: np.ndarray, color: str, fit_color: str, degree: int = 7, should_fit: bool = True):
+def plot_and_fit(xs: np.ndarray, ys: np.ndarray, color: str, fit_color: str, label: str, degree: int = 7, should_fit: bool = True):
     if should_fit:
         x_fit, y_fit = fit(xs, ys, degree=degree)
     else:
         x_fit, y_fit = xs, ys
-    plt.plot(x_fit, y_fit, color=fit_color)
-    plt.scatter(xs, ys, color=color)
+    plt.plot(x_fit, y_fit, color=fit_color, zorder=1)
+    plt.scatter(xs, ys, color=color, label=label, zorder=2)
 
-plot_and_fit(xs, ys, 'black', 'gray')
+plot_and_fit(xs, ys, 'black', 'gray', 'Actual')
 
 # Evaluate the model on each of the systems
 import torch
@@ -112,9 +112,9 @@ indices = xs_model.argsort()
 xs_model = xs_model[indices]
 ys_model = ys_model[indices]
 
-plot_and_fit(xs_model, ys_model, 'blue', 'lightblue', should_fit=False)
+plot_and_fit(xs_model, ys_model, 'blue', 'lightblue', 'Predicted', should_fit=False)
 
-plt.xlabel('Distance (A)')
+plt.xlabel('Distance (Å)')
 plt.ylabel('Interaction Energy (kcal/mol)')
 
 if args.title is None:
@@ -122,5 +122,6 @@ if args.title is None:
 else:
     title = args.title
 plt.title(title)
+plt.legend()
 
-plt.savefig('dissociation.png')
+plt.savefig('dissociation.png', dpi=300)
