@@ -122,6 +122,6 @@ if args.title is None:
 else:
     title = args.title
 plt.title(title)
-plt.legend()
+plt.legend(loc='lower right')
 
 plt.savefig('dissociation.png', dpi=300)
