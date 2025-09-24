@@ -41,7 +41,8 @@ per_atom_IE = scaler_y.inverse_transform(per_atom_IE) * 627.509
 scaler_baseline = (scaler_y.inverse_transform(np.array([[0]])) * 627.509)[0][0]
 
 per_atom_IE = per_atom_IE[:, 0] - scaler_baseline
-per_atom_IE[:args.natoms] += scaler_baseline / args.natoms 
+per_atom_IE = per_atom_IE[:args.natoms]
+per_atom_IE += scaler_baseline / args.natoms 
 
 element_map = {0: 'H', 1: 'C', 2: 'N', 3: 'O'}
 per_atom_e = per_atom_e.squeeze(0).cpu().numpy()
@@ -51,3 +52,5 @@ for x in range(args.natoms):
     atom_contrib = per_atom_IE[x]
 
     print(f'{elem} {atom_contrib:.1f}')
+
+np.savetxt('per_atom_ie.npy', per_atom_IE, fmt='%.1f')
