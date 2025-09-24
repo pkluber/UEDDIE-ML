@@ -301,6 +301,8 @@ class UEDDIENetwork(nn.Module):
             energy_c = energy_c.to(per_atom_IE.device)
             per_atom_IE = torch.where(mask_c[:, :, 0], energy_c, per_atom_IE)
 
+        self.per_atom_IE = -per_atom_IE
+
         return -per_atom_IE.sum(dim=1)
 
 class UEDDIEFinetuner(nn.Module):
