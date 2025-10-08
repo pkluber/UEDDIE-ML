@@ -240,35 +240,12 @@ class UEDDIESubnet(nn.Module):
 
 
 class UEDDIENetwork(nn.Module):
-    def __init__(self, d_model: int, num_heads: int = 4, d_ff: int = 128, depth_e: int = 10, depth_c: int = 10, multi_gpu: bool = False):
+    def __init__(self, d_model: int, num_heads: int = 4, d_ff: int = 128, depth_e: int = 10, depth_c: int = 10):
         super().__init__()
         
-        # Setup subnet GPU paralellism
-        if multi_gpu:
-            # Map 0,1,2,3 to cuda:0,1,2,3
-            self.devices_e = {'0': 'cuda:0', '1': 'cuda:1', '2': 'cuda:2', '3': 'cuda:3'} 
-            # Map -1,0,1 to cuda:0,1,2
-            self.devices_c = {'-1': 'cuda:0', '0': 'cuda:1', '1': 'cuda:2'}
-        else:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            self.devices_e = {'0': device, '1': device, '2': device, '3': device}
-            self.devices_c = {'-1': device, '0': device, '1': device}
-
         self.elem_subnets = nn.ModuleDict({str(e): UEDDIESubnet(d_model, num_heads, d_ff, depth_e) for e in range(4)})
         self.charge_subnets = nn.ModuleDict({str(c): UEDDIESubnet(d_model, num_heads, d_ff, depth_c) for c in range(-1, 2)})
-        
-        # Assign subnets to different devices, if applicable
-        for e in range(4):
-            self.elem_subnets[str(e)].to(torch.device(self.devices_e[str(e)]))
-        
-        for c in range(-1, 2):
-            self.charge_subnets[str(c)].to(torch.device(self.devices_c[str(c)]))
-
-    def disable_multi_gpu(self, device: torch.device):
-        self.devices_e = {'0': device, '1': device, '2': device, '3': device}
-        self.devices_c = {'-1': device, '0': device, '1': device}
-        self.to(device)
-    
+           
     def forward(self, X: torch.Tensor, E: torch.Tensor, C: torch.Tensor) -> torch.Tensor:
         # Sanitize E, C, make sure they're int
         E = E.to(torch.int64)
@@ -282,11 +259,9 @@ class UEDDIENetwork(nn.Module):
 
         for e in self.elem_subnets.keys():
             mask, X_masked = create_mask(X, E == int(e))
-            X_masked = X_masked.to(torch.device(self.devices_e[e]), non_blocking=True)
             energy_parts.append((mask, self.elem_subnets[e](X_masked)))
 
         for mask_e, energy_e in energy_parts:
-            energy_e = energy_e.to(per_atom_IE.device)
             per_atom_IE = torch.where(mask_e[:, :, 0], energy_e, per_atom_IE)
 
         # Apply charge scaling subnets
@@ -294,11 +269,9 @@ class UEDDIENetwork(nn.Module):
 
         for c in self.charge_subnets.keys():
             mask, X_masked = create_mask(X, C == int(c))
-            X_masked = X_masked.to(torch.device(self.devices_c[c]))
-            charge_parts.append((mask, per_atom_IE.to(torch.device(self.devices_c[c]), non_blocking=True) * torch.exp(self.charge_subnets[c](X_masked))))
+            charge_parts.append((mask, per_atom_IE * torch.exp(self.charge_subnets[c](X_masked))))
         
         for mask_c, energy_c in charge_parts:
-            energy_c = energy_c.to(per_atom_IE.device)
             per_atom_IE = torch.where(mask_c[:, :, 0], energy_c, per_atom_IE)
 
         self.per_atom_IE = -per_atom_IE

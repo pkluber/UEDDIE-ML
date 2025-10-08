@@ -50,7 +50,7 @@ test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, pin_memo
 # Initialize model
 x_sample, _, _, _ = next(iter(train_dataloader))
 d_model = x_sample.shape[-1]
-model = UEDDIENetwork(d_model, num_heads=4, d_ff=128, depth_e=5, depth_c=5, multi_gpu=(num_gpus==4))
+model = UEDDIENetwork(d_model, num_heads=4, d_ff=128, depth_e=5, depth_c=5)
 if len(devices) == 1:
     model.to(device) 
 
