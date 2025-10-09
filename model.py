@@ -282,10 +282,7 @@ class UEDDIENetwork(nn.Module):
             proj_c = self.charge_projs[c](X_masked).squeeze(-1)
             c_proj_out = torch.where(mask[:, :, 0], proj_c, c_proj_out)
 
-        # Clamp to prevent gradient explosion
-        c_proj_out = torch.clamp(c_proj_out, min=-3, max=3)
-
-        per_atom_IE = e_proj_out * torch.exp(c_proj_out)
+        per_atom_IE = e_proj_out * torch.abs(c_proj_out)
 
         self.per_atom_IE = -per_atom_IE
 

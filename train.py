@@ -54,9 +54,11 @@ model = UEDDIENetwork(d_model, num_heads=4, d_ff=128, depth_e=5, depth_c=5)
 if len(devices) == 1:
     model.to(device) 
 
+model = torch.compile(model)
+
 # Loss and stuff
 loss_function = nn.MSELoss()
-optimizer = optim.AdamW(list(model.parameters()), lr=1e-4)
+optimizer = optim.AdamW(list(model.parameters()), lr=1e-3)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=60)
 
 print(f'Beginning training using primarily device={device}!', flush=True)
@@ -65,6 +67,10 @@ print(f'Beginning training using primarily device={device}!', flush=True)
 early_stopping_patience = 100
 best_val_loss = float('inf')
 epochs_no_improve = 0
+
+# Mixed precision training
+from torch.cuda.amp import GradScaler, autocast
+grad_scaler = GradScaler()
 
 train_losses = []
 val_losses = []
@@ -79,11 +85,14 @@ for epoch in range(n_epoch):
         X, E, C, Y = X.to(device, non_blocking=True), E.to(device, non_blocking=True), C.to(device, non_blocking=True), Y.to(device, non_blocking=True)
         optimizer.zero_grad()
         
-        Y_pred = model(X, E, C)
+        with autocast():
+            Y_pred = model(X, E, C)
+            
+            loss = loss_function(Y_pred, Y) 
 
-        loss = loss_function(Y_pred, Y) 
-        loss.backward()
-        optimizer.step()
+        grad_scaler.scale(loss).backward()
+        grad_scaler.step(optimizer)
+        grad_scaler.update()
         
         train_loss += loss.item()
     
