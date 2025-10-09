@@ -56,7 +56,7 @@ if len(devices) == 1:
 
 # Loss and stuff
 loss_function = nn.MSELoss()
-optimizer = optim.AdamW(list(model.parameters()), lr=1e-5)
+optimizer = optim.AdamW(list(model.parameters()), lr=1e-4)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=60)
 
 print(f'Beginning training using primarily device={device}!', flush=True)

@@ -192,7 +192,12 @@ class MultiHeadSelfAttention(nn.Module):
         for l in self.qkvs.keys():
             mask, X_masked = create_mask(X, L == int(l))
             qkv_l = self.qkvs[l](X_masked)
-            qkv += qkv_l
+
+            mask = mask[:, :, 0]
+            mask = mask.unsqueeze(-1)
+            mask = mask.tile((1,1,3*self.d_padded))
+
+            qkv = torch.where(mask, qkv_l, qkv)
 
         # Now chunk into q, k, v 
         q, k, v = qkv.chunk(3, dim=-1)
@@ -233,7 +238,7 @@ class UEDDIETransformerBlock(nn.Module):
         for l in self.ffs.keys():
             mask, X_masked = create_mask(X, L == int(l))
             ff_l = self.ffs[l](X_masked)
-            ff_out += ff_l
+            ff_out = torch.where(mask, ff_l, ff_out)
         
         # Return residual of SwiGLU and pre-normed MHSA
         return X + ff_out
@@ -276,6 +281,9 @@ class UEDDIENetwork(nn.Module):
             mask, X_masked = create_mask(X, C == int(c))
             proj_c = self.charge_projs[c](X_masked).squeeze(-1)
             c_proj_out = torch.where(mask[:, :, 0], proj_c, c_proj_out)
+
+        # Clamp to prevent gradient explosion
+        c_proj_out = torch.clamp(c_proj_out, min=-3, max=3)
 
         per_atom_IE = e_proj_out * torch.exp(c_proj_out)
 

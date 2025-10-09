@@ -20,7 +20,6 @@ def predict(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | No
 
     if model is None:
         model = torch.load('model.pt', weights_only=False, map_location=device)
-    model.disable_multi_gpu(device)
     model.eval()
 
     if test_dataset is None:
