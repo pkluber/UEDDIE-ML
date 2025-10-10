@@ -59,15 +59,15 @@ def predict(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | No
     return ies_pred, ies
 
 def print_test_metrics(ies_pred: np.ndarray, ies: np.ndarray):
-    mse = mean_squared_error(ies, ies_pred)
-    rmse = np.sqrt(mse)
-    mae = mean_absolute_error(ies, ies_pred)
+    mse = mean_squared_error(ies, ies_pred) * 4.184**2
+    rmse = np.sqrt(mse) 
+    mae = mean_absolute_error(ies, ies_pred) * 4.184
     r2 = r2_score(ies, ies_pred)
 
-    print(f'MSE:  {mse:.1f}')
-    print(f'RMSE: {rmse:.1f}')
-    print(f'MAE:  {mae:.1f}')
-    print(f'R^2:  {r2:.3f}')
+    print(f'MSE (kJ^2/mol^2):  {mse:.1f}')
+    print(f'RMSE (kJ/mol):     {rmse:.1f}')
+    print(f'MAE (kJ/mol):      {mae:.1f}')
+    print(f'R^2:               {r2:.3f}')
 
 def plot_results(ies_pred: np.ndarray, ies: np.ndarray):
     # Best fit line
