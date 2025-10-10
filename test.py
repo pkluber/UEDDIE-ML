@@ -85,35 +85,26 @@ def plot_results(ies_pred: np.ndarray, ies: np.ndarray):
     #plt.title('Predicted vs. Actual Interaction Energy')
     plt.legend()
 
-    r2 = r2_score(ies, ies_pred)
-    plt.text(
-        0.05, 0.95, f'$R^2 = {r2:.3f}$',
-        transform=plt.gca().transAxes,
-        fontsize=12,
-        verticalalignment='top',
-        bbox=dict(facecolor='white', alpha=0.8, edgecolor='black', boxstyle='square,pad=0.3')
-    )
-
     plt.tight_layout()
     plt.savefig('test_results.png', dpi=300)
     plt.close()
 
 def plot_errors(ies_pred: np.ndarray, ies: np.ndarray):
-    errors = ies_pred - ies
+    errors = (ies_pred - ies) * 4.184  # convert errors to kJ/mol
     
     # Bins should be every 0.2 kcal/mol 
     bin_size = 0.2 
     bin_edges = np.arange(np.floor(np.min(errors) / bin_size) * bin_size, np.ceil(np.max(errors) / bin_size) * bin_size + bin_size, bin_size)
 
     plt.hist(errors, bins=bin_edges, edgecolor='black', density=False)
-    plt.xlabel('Residual errors (kcal/mol)')
+    plt.xlabel('Error residuals (kJ/mol)')
     plt.xlim(np.floor(np.min(errors)), np.ceil(np.max(errors)) + bin_size)
     plt.xticks(np.arange(np.floor(np.min(errors)), np.ceil(np.max(errors))+1, 1))
     plt.grid(which='major', linewidth=1.0, alpha=0.5)
     plt.minorticks_on()
     plt.grid(which='minor', linewidth=0.5, linestyle=':',  alpha=0.5)
     plt.ylabel('Frequency')
-    plt.title('Histogram of Test Residual Errors')
+    plt.title('Histogram of Test Error Residuals')
     plt.savefig('test_errors.png', dpi=300)
     plt.close()
 
