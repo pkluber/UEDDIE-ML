@@ -30,6 +30,7 @@ def predict(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | No
 
     ies = []
     ies_pred = []
+    names = []
     with torch.no_grad():
         for x, e, c, y, name in [test_dataset.get(x, return_name=True) for x in range(len(test_dataset))]:
             print(f'Testing {name}...')
@@ -52,9 +53,17 @@ def predict(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | No
 
             ies.append(ie)
             ies_pred.append(ie_pred)
+            names.append(name)
 
     ies = np.array(ies)
     ies_pred = np.array(ies_pred)
+
+    errors = np.abs(ies_pred - ies)
+
+    top_10_errors = np.argsort(errors)[::-1][:10]
+
+    for idx in top_10_errors:
+        print(f'Top Error: {names[idx]} with {errors[idx]:.2f} kcal/mol')
 
     return ies_pred, ies
 
