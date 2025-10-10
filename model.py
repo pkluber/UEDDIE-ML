@@ -267,8 +267,8 @@ class UEDDIENetwork(nn.Module):
         
         e_proj_out = torch.zeros(X.shape[:-1], device=X.device)
         for e in self.elem_projs.keys():
-            mask, X_masked = create_mask(X, E == int(e))
-            proj_e = self.elem_projs[e](X_masked).squeeze(-1)
+            mask, e_masked = create_mask(e_out, E == int(e))
+            proj_e = self.elem_projs[e](e_masked).squeeze(-1)
             e_proj_out = torch.where(mask[:, :, 0], proj_e, e_proj_out)
 
         # Charge scaling stream
@@ -278,11 +278,11 @@ class UEDDIENetwork(nn.Module):
         
         c_proj_out = torch.zeros(X.shape[:-1], device=X.device)
         for c in self.charge_projs.keys():
-            mask, X_masked = create_mask(X, C == int(c))
-            proj_c = self.charge_projs[c](X_masked).squeeze(-1)
+            mask, c_masked = create_mask(c_out, C == int(c))
+            proj_c = self.charge_projs[c](c_masked).squeeze(-1)
             c_proj_out = torch.where(mask[:, :, 0], proj_c, c_proj_out)
 
-        per_atom_IE = e_proj_out * torch.abs(c_proj_out)
+        per_atom_IE = e_proj_out * torch.exp(c_proj_out)
 
         self.per_atom_IE = -per_atom_IE
 

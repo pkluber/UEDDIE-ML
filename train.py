@@ -58,8 +58,8 @@ model = torch.compile(model)
 
 # Loss and stuff
 loss_function = nn.MSELoss()
-optimizer = optim.AdamW(list(model.parameters()), lr=1e-3)
-scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=60)
+optimizer = optim.AdamW(list(model.parameters()), lr=4e-5)
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.25, patience=60)
 
 print(f'Beginning training using primarily device={device}!', flush=True)
 
@@ -89,6 +89,9 @@ for epoch in range(n_epoch):
             Y_pred = model(X, E, C)
             
             loss = loss_function(Y_pred, Y) 
+
+        # Gradient clipping
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
         grad_scaler.scale(loss).backward()
         grad_scaler.step(optimizer)
