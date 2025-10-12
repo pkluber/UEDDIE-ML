@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from joblib import dump, load
-from typing import Tuple
+from typing import Tuple, Union
 
 from utils import get_dataset, get_datasets_list
 from random import shuffle
@@ -193,7 +193,7 @@ def get_dataloader(batch_size: int = 16, shuffle: bool = True):
     dataset = UEDDIEDataset()
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
-def get_train_validation_test_datasets(train_ratios: dict[str, float] | None = None):
+def get_train_validation_test_datasets(train_ratios: Union[dict[str, float], None] = None):
     if train_ratios is None:
         train_ratios = {'IL174': 0.9, 'extraILs': 0.9, 'S66': 0.8, 'SSI': 0.8}
 

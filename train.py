@@ -54,7 +54,8 @@ model = UEDDIENetwork(d_model, num_heads=4, d_ff=128, depth_e=5, depth_c=5)
 if len(devices) == 1:
     model.to(device) 
 
-model = torch.compile(model)
+if hasattr(torch, 'compile'):
+    model = torch.compile(model)
 
 # Loss and stuff
 loss_function = nn.MSELoss()

@@ -73,7 +73,12 @@ from model import UEDDIENetwork
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-model = torch.load('model.pt', weights_only=False, map_location=device)
+if torch.__version__.startswith('2'):
+    model = torch.load('model.pt', weights_only=False, map_location=device)
+else:
+    model = torch.load('model.pt', map_location=device)
+    torch.set_default_dtype(torch.float64)
+
 model.eval()
 
 dataset = UEDDIEDataset()
@@ -87,6 +92,7 @@ with torch.no_grad():
     for x, e, c, y, name in [dataset.get(x, return_name=True) for x in range(len(dataset))]:
         if name.startswith(args.input):
             x = x.unsqueeze(0)
+            print(x)
             e = e.unsqueeze(0)
             c = c.unsqueeze(0)
 

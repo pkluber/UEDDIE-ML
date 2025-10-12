@@ -11,15 +11,20 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import seaborn as sns
 from joblib import load
-from typing import Tuple
+from typing import Tuple, Union
 
 # Returns the predicted followed by the actual interaction energy (in kcal/mol)
-def predict(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | None = None,
-            scaler_y: RobustScaler | None = None) -> Tuple[np.ndarray, np.ndarray]:
+def predict(model: Union[UEDDIENetwork, None] = None, test_dataset: Union[UEDDIEDataset, None] = None,
+            scaler_y: Union[RobustScaler, None] = None) -> Tuple[np.ndarray, np.ndarray]:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if model is None:
-        model = torch.load('model.pt', weights_only=False, map_location=device)
+        if torch.__version__.startswith('2'):
+            model = torch.load('model.pt', weights_only=False, map_location=device)
+        else:
+            model = torch.load('model.pt', map_location=device)
+            torch.set_default_dtype(torch.float64)
+
     model.eval()
 
     if test_dataset is None:
@@ -89,8 +94,8 @@ def plot_results(ies_pred: np.ndarray, ies: np.ndarray):
     line = np.linspace(min(ies_pred), max(ies_pred), 100)
     plt.plot(line, line, 'r--', label='Ideal (y=x)')
     plt.plot(line, slope*line + intercept, 'g-', label='Best-fit line')
-    plt.xlabel('Predicted $\\Delta E^{\\text{INT}}$ (kcal/mol)')
-    plt.ylabel('Actual $\\Delta E^{\\text{INT}}$ (kcal/mol)')
+    plt.xlabel('Predicted $\\Delta E^{\\mathrm{INT}}$ (kcal/mol)')
+    plt.ylabel('Actual $\\Delta E^{\\mathrm{INT}}$ (kcal/mol)')
     #plt.title('Predicted vs. Actual Interaction Energy')
     plt.legend()
 
@@ -117,8 +122,8 @@ def plot_errors(ies_pred: np.ndarray, ies: np.ndarray):
     plt.savefig('test_errors.png', dpi=300)
     plt.close()
 
-def test(model: UEDDIENetwork | None = None, test_dataset: UEDDIEDataset | None = None,
-         scaler_y: RobustScaler | None = None) -> Tuple[np.ndarray, np.ndarray]:
+def test(model: Union[UEDDIENetwork, None] = None, test_dataset: Union[UEDDIEDataset, None] = None,
+         scaler_y: Union[RobustScaler, None] = None) -> Tuple[np.ndarray, np.ndarray]:
     ies_pred, ies = predict(model=model, test_dataset=test_dataset, scaler_y=scaler_y)
 
     # Print test metrics

@@ -52,7 +52,7 @@ class FunnelMLP(nn.Module):
 def create_mask(X: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     mask = mask.unsqueeze(-1)
     mask = mask.tile((1,1,X.shape[2]))
-    X_masked = torch.where(mask, X, 0)
+    X_masked = torch.where(mask, X, 0.0)
     return mask, X_masked
 
 
