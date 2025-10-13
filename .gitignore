@@ -132,6 +132,7 @@ dmypy.json
 data/bcurves
 data/L7
 data/CC3
+data/highres
 
 # SLURM
 slurm-*.out
