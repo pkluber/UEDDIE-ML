@@ -292,7 +292,12 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
 def dimer_cube_differences(data_dir: Path, method: str, resolution: float = DEFAULT_RESOLUTION, 
                            extension: float = DEFAULT_EXTENSION, grid_type: str = DEFAULT_GRID, 
                            level: int = DEFAULT_LEVEL, overwrite: bool = False):
-    for path in data_dir.rglob('*.xyz'):
+    paths = list(data_dir.rglob('*.xyz'))
+
+    import random
+    random.shuffle(paths)
+
+    for path in paths:
         if path.is_file() and path.suffix == '.xyz':
             dimer_cube_difference(path, method, resolution=resolution, extension=extension, grid_type=grid_type, level=level, overwrite=overwrite)
 
