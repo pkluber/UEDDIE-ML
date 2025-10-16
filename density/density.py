@@ -53,7 +53,7 @@ class CubeDensity(Density):
         self.quadrature = np.linalg.det(self.U)
     
     def get_indices(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        xm, ym, zm = [list(range(-self.grid[i], self.grid[i]+1)) for i in range(3)]
+        xm, ym, zm = [list(range(-self.grid[i], self.grid[i])) for i in range(3)]
         return np.meshgrid(xm, ym, zm, indexing='ij')
 
     def mesh_3d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
