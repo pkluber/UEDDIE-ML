@@ -16,22 +16,9 @@ from density.utils import get_charges
 
 from pathlib import Path
 from typing import Tuple
-from dataclasses import dataclass
-
-@dataclass
-class NonuniformGrid:
-    coords: np.ndarray   # Shape should be (N, 3)
-    weights: np.ndarray  # Shape should be (N,)
-
-    def get_ngrids(self) -> int:
-        return self.coords.shape[0]
-
-    def get_coords(self) -> np.ndarray:
-        return self.coords
 
 DEFAULT_RESOLUTION = 0.1
 DEFAULT_EXTENSION = 5.0
-DEFAULT_GRID = 'uniform'
 DEFAULT_LEVEL = 3
 
 def get_atom_monomers_and_dimer(xyz_file: Path) -> Tuple[str, str, str]:
@@ -87,40 +74,22 @@ def mp2(mol: gto.Mole) -> np.ndarray | None:
     mp2.kernel()
     return density_or_none(mp2)
 
-def pbe0(mol: gto.Mole, level: int) -> Tuple[np.ndarray | None, np.ndarray, np.ndarray]:
+def pbe0(mol: gto.Mole, level: int) -> np.ndarray | None:
     mf = dft.RKS(mol)
     mf.xc = 'pbe0'
     mf.grids.level = level
     mf.kernel()
     
-    # Becke-type grid info from DFT 
-    mf.grids.build()
-    coords = mf.grids.coords
-    weights = mf.grids.weights
+    return density_or_none(mf)
 
-    if GPU:
-        coords = coords.get()
-        weights = weights.get()
-
-    return density_or_none(mf), coords, weights
-
-def lda(mol: gto.Mole, level: int) -> Tuple[np.ndarray | None, np.ndarray, np.ndarray]:
+def lda(mol: gto.Mole, level: int) -> np.ndarray | None:
     mf = dft.RKS(mol)
     mf.xc = 'lda'
     mf = mf.newton()
     mf.grids.level = level
     mf.kernel()
 
-    # Becke-type grid info from DFT
-    mf.grids.build()
-    coords = mf.grids.coords
-    weights = mf.grids.weights
-
-    if GPU:
-        coords = coords.get()
-        weights = weights.get()
-
-    return density_or_none(mf), coords, weights
+    return density_or_none(mf)
 
 # Adapted from EDDIE-ML: https://github.com/lowkc/eddie-ml/blob/main/density/cube_utils.py#L238
 def generate_uniform_grid(molecule: gto.Mole, spacing=0.2, extension=4, rotate=False, verbose=True):
@@ -184,7 +153,7 @@ def generate_uniform_grid(molecule: gto.Mole, spacing=0.2, extension=4, rotate=F
     
     return points, origin
 
-def generate_density(grid: Cube | NonuniformGrid, mol: gto.Mole, dm: np.ndarray) -> np.ndarray:
+def generate_density(grid: Cube, mol: gto.Mole, dm: np.ndarray) -> np.ndarray:
     N = grid.get_ngrids()
     coords = grid.get_coords()
 
@@ -202,30 +171,17 @@ def generate_density(grid: Cube | NonuniformGrid, mol: gto.Mole, dm: np.ndarray)
 
         rho[ip0:ip1] = rho_chunk
 
-    if isinstance(grid, Cube):
-        nx, ny, nz = grid.nx, grid.ny, grid.nz 
-        rho = rho.reshape(nx, ny, nz)
+    rho = rho.reshape(grid.nx, grid.ny, grid.nz)
 
     return rho
 
 def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAULT_RESOLUTION, 
-                          extension: float = DEFAULT_EXTENSION, grid_type: str = DEFAULT_GRID, 
-                          level: int = DEFAULT_LEVEL, overwrite: bool = False, 
+                          extension: float = DEFAULT_EXTENSION, level: int = DEFAULT_LEVEL, 
+                          overwrite: bool = False, 
                           charges: Tuple[int, int] | None = None) -> bool:
-    grid_type = grid_type.strip().lower()
-    if grid_type not in ['uniform', 'becke']:
-        raise ValueError('Grid types currently implemented: Uniform and Becke')
-
-    if grid_type == 'becke' and method != 'PBE0' and method != 'LDA':
-        raise ValueError('Becke-type grid only supported for PBE0 and LDA (DFT methods)')
-    
     cube_path = xyz_path.parent / f'{xyz_path.stem}.cube'
-    rho_path = xyz_path.parent / f'{xyz_path.stem}.rho'
-    if cube_path.is_file() and not overwrite and grid_type == 'uniform':
+    if cube_path.is_file() and not overwrite:
         print(f'Found .cube file for {xyz_path.name}, not overwriting...')
-        return True
-    elif rho_path.is_file() and not overwrite and grid_type == 'becke':
-        print(f'Found .rho file for {xyz_path.name}, not overwriting...')
         return True
 
     print(f'Generating deformation density for {xyz_path.name}...')
@@ -240,13 +196,9 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
     elif method == 'MP2':
         dm_m1, dm_m2, dm_dimer = mp2(mol_m1), mp2(mol_m2), mp2(mol_dimer)
     elif method == 'PBE0':
-        dm_m1, _, _ = pbe0(mol_m1, level)
-        dm_m2, _, _ = pbe0(mol_m2, level)
-        dm_dimer, grid_coords, grid_weights = pbe0(mol_dimer, level)
+        dm_m1, dm_m2, dm_dimer = pbe0(mol_m1, level), pbe0(mol_m2, level), pbe0(mol_dimer, level)
     elif method == 'LDA':
-        dm_m1, _, _ = lda(mol_m1, level)
-        dm_m2, _, _ = lda(mol_m2, level)
-        dm_dimer, grid_coords, grid_weights = lda(mol_dimer, level)
+        dm_m1, dm_m2, dm_dimer = lda(mol_m1, level), lda(mol_m2, level), lda(mol_dimer, level)
     else:
         raise ValueError(f'Method {method} not recognized!')
 
@@ -254,44 +206,29 @@ def dimer_cube_difference(xyz_path: Path, method: str, resolution: float = DEFAU
         print(f'Calculations failed to converge for {xyz_path.name}!')
         return False  # Failed deformation density calculation if method failed to converge
      
-    if grid_type == 'uniform':
-        _, origin = generate_uniform_grid(mol_dimer, spacing=resolution, extension=extension, rotate=False, verbose=False)    
+    _, origin = generate_uniform_grid(mol_dimer, spacing=resolution, extension=extension, rotate=False, verbose=False)    
 
-        cube_dimer = Cube(mol_dimer, resolution=resolution, margin=extension, origin=origin)
-        nx, ny, nz = cube_dimer.nx, cube_dimer.ny, cube_dimer.nz
-        box = np.diag(cube_dimer.box)
-        rho_dimer = generate_density(cube_dimer, mol_dimer, dm_dimer)
+    cube_dimer = Cube(mol_dimer, resolution=resolution, margin=extension, origin=origin)
+    nx, ny, nz = cube_dimer.nx, cube_dimer.ny, cube_dimer.nz
+    box = np.diag(cube_dimer.box)
+    rho_dimer = generate_density(cube_dimer, mol_dimer, dm_dimer)
 
-        cube_m1 = Cube(mol_m1, nx, ny, nz, margin=extension, origin=origin, extent=box)
-        rho_m1 = generate_density(cube_m1, mol_m1, dm_m1)
+    cube_m1 = Cube(mol_m1, nx, ny, nz, margin=extension, origin=origin, extent=box)
+    rho_m1 = generate_density(cube_m1, mol_m1, dm_m1)
 
-        cube_m2 = Cube(mol_m2, nx, ny, nz, margin=extension, origin=origin, extent=box)
-        rho_m2 = generate_density(cube_m2, mol_m2, dm_m2)
+    cube_m2 = Cube(mol_m2, nx, ny, nz, margin=extension, origin=origin, extent=box)
+    rho_m2 = generate_density(cube_m2, mol_m2, dm_m2)
 
-        rho_def = rho_dimer - rho_m1 - rho_m2
-        
-        cube_dimer.write(rho_def, str(xyz_path.parent / f'{xyz_path.stem}.cube'), comment=f'{method}/cc-pVTZ deformation density for {xyz_path.name}')
-    elif grid_type == 'becke':
-        grid = NonuniformGrid(coords=grid_coords, weights=grid_weights)
-        rho_dimer = generate_density(grid, mol_dimer, dm_dimer)
-        rho_m1 = generate_density(grid, mol_m1, dm_m1)
-        rho_m2 = generate_density(grid, mol_m2, dm_m2)
-
-        rho_def = rho_dimer - rho_m1 - rho_m2
-        
-        rho_and_weights = np.stack((rho_def, grid_weights), axis=1)
-        rho_weight_coords = np.concatenate((rho_and_weights, grid_coords), axis=1)
-        
-        np.savetxt(str(xyz_path.parent / f'{xyz_path.stem}.rho'), rho_weight_coords)
-    else:
-        raise ValueError(f'Grid type not recognized: {grid_type}')
+    rho_def = rho_dimer - rho_m1 - rho_m2
+    
+    cube_dimer.write(rho_def, str(xyz_path.parent / f'{xyz_path.stem}.cube'), comment=f'{method}/cc-pVTZ deformation density for {xyz_path.name}')
 
     print(f'Done generating deformation density for {xyz_path.name}!')
     return True
 
 def dimer_cube_differences(data_dir: Path, method: str, resolution: float = DEFAULT_RESOLUTION, 
-                           extension: float = DEFAULT_EXTENSION, grid_type: str = DEFAULT_GRID, 
-                           level: int = DEFAULT_LEVEL, overwrite: bool = False):
+                           extension: float = DEFAULT_EXTENSION, level: int = DEFAULT_LEVEL, 
+                           overwrite: bool = False):
     paths = list(data_dir.rglob('*.xyz'))
 
     import random
@@ -299,7 +236,7 @@ def dimer_cube_differences(data_dir: Path, method: str, resolution: float = DEFA
 
     for path in paths:
         if path.is_file() and path.suffix == '.xyz':
-            dimer_cube_difference(path, method, resolution=resolution, extension=extension, grid_type=grid_type, level=level, overwrite=overwrite)
+            dimer_cube_difference(path, method, resolution=resolution, extension=extension, level=level, overwrite=overwrite)
 
 if __name__ == '__main__':
     import argparse
@@ -308,15 +245,14 @@ if __name__ == '__main__':
     parser.add_argument('method', type=str, help='Density type. Choose from HF, MP2, LDA, or PBE0')
     parser.add_argument('--resolution', type=float, default=DEFAULT_RESOLUTION, help='.cube resolution')
     parser.add_argument('--extension', type=float, default=DEFAULT_EXTENSION, help='Extension on sides of .cube file')
-    parser.add_argument('--grid', type=str, default=DEFAULT_GRID, help='Type of grid to use (uniform or Becke)')
     parser.add_argument('--level', type=int, default=DEFAULT_LEVEL, help='Level to use for LDA and the Becke grid')
     parser.add_argument('--path', type=str, default='data/bcurves', help='Relative path to data directory')
     parser.add_argument('--input', type=str, default='', help='Input file to use for generating a single .cube file')
-    parser.add_argument('--overwrite', type=bool, default=False, help='Whether to overwrite pre-existing .cube/.rho files')
+    parser.add_argument('--overwrite', type=bool, default=False, help='Whether to overwrite pre-existing .cube files')
 
     args = parser.parse_args()
 
     if len(args.input) > 0:
-        dimer_cube_difference(Path(args.input), args.method, args.resolution, args.extension, args.grid, args.level, args.overwrite)
+        dimer_cube_difference(Path(args.input), args.method, args.resolution, args.extension, args.level, args.overwrite)
     else:
-        dimer_cube_differences(Path(args.path), args.method, args.resolution, args.extension, args.grid, args.level, args.overwrite) 
+        dimer_cube_differences(Path(args.path), args.method, args.resolution, args.extension, args.level, args.overwrite) 
