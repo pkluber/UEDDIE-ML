@@ -59,7 +59,7 @@ if hasattr(torch, 'compile'):
 
 # Loss and stuff
 loss_function = nn.MSELoss()
-optimizer = optim.AdamW(list(model.parameters()), lr=4e-5, weight_decay=5e-2)
+optimizer = optim.AdamW(list(model.parameters()), lr=4e-5)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.25, patience=60)
 
 print(f'Beginning training using primarily device={device}!', flush=True)
