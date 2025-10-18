@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import asdict
+from joblib import dump
 
 def reduce_dims(X: np.ndarray, plot: bool = True) -> np.ndarray:
     scaler = StandardScaler()
@@ -25,6 +26,9 @@ def reduce_dims(X: np.ndarray, plot: bool = True) -> np.ndarray:
     
     # Extract first {n_components_99} features, extracting 99% of variance
     X_reduced = pca.transform(X_scaled)[:, :n_components_99]
+
+    # Save PCA object for evaluate.py
+    dump(pca, 'pca.joblib')
 
     if plot:
         # Plot cumulative explained variance
