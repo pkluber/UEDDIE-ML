@@ -17,9 +17,24 @@ from collections import defaultdict
 from io import TextIOWrapper
 from typing import Tuple
 
-DEFAULT_PARAMS = DescriptorParams(r_o=2.5, r_i=0.0, n_rad=4, n_l=3, gamma=0)
-DEFAULT_ATOM_PARAMS = defaultdict(lambda: DEFAULT_PARAMS)
+DEFAULT_DESC_PARAMS = DescriptorParams(r_o=2.5, r_i=0.0, n_rad=4, n_l=3, gamma=0)
+
+def atom_desc_map():
+    return DEFAULT_DESC_PARAMS
+
+DEFAULT_ATOM_PARAMS = defaultdict(atom_desc_map)
 DEFAULT_ALIGN_METHOD = 'elf'
+
+from dataclasses import dataclass
+
+@dataclass
+class CoeffParams:
+    atom_params: dict[str, DescriptorParams]
+    align_method: str
+
+DEFAULT_PARAMS = CoeffParams(atom_params=DEFAULT_ATOM_PARAMS, align_method=DEFAULT_ALIGN_METHOD)
+
+from joblib import dump
 
 # Adapted from EDDIE-ML: https://github.com/lowkc/eddie-ml/blob/main/density/read_cubes.py#L10
 def _read_cube_header(f: TextIOWrapper) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -204,8 +219,7 @@ def orient_elf(i, elf, all_pos, mode):
     return elf_oriented
 
 def calculate_dens_coeffs(dens_path: Path, 
-                          params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, 
-                          align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False, 
+                          params: CoeffParams = DEFAULT_PARAMS, overwrite: bool = False, 
                           charges: Tuple[int, int] | None = None) -> bool:
     coeff_path = dens_path.parent / f'{dens_path.stem}.coeff'
     if coeff_path.is_file() and not overwrite:
@@ -227,7 +241,7 @@ def calculate_dens_coeffs(dens_path: Path,
     for i in range(len(atoms)):
         atom_pos = atom_positions[i]
         atom_element = atom_species[i]
-        atom_params = params[atom_element]
+        atom_params = params.atom_params[atom_element]
 
         # Center coords around atom
         X_atom, Y_atom, Z_atom = (X - atom_pos[0]), (Y - atom_pos[1]), (Z - atom_pos[2])
@@ -277,7 +291,7 @@ def calculate_dens_coeffs(dens_path: Path,
                   charge=charge)
 
         # Compute the aligned elf
-        elf = orient_elf(i, elf, atom_positions, align_method)
+        elf = orient_elf(i, elf, atom_positions, params.align_method)
         print(elf.value)
         
         # Add to coeff file for writing
@@ -286,10 +300,10 @@ def calculate_dens_coeffs(dens_path: Path,
     coeff_file.save()
     print(f'Successfully created {coeff_path.name}!')
 
-def calculate_dens_coeffs_all(data_dir: Path, params: dict[str, DescriptorParams] = DEFAULT_ATOM_PARAMS, align_method: str = DEFAULT_ALIGN_METHOD, overwrite: bool = False):
+def calculate_dens_coeffs_all(data_dir: Path, params: CoeffParams = DEFAULT_PARAMS, overwrite: bool = False):
     for path in data_dir.rglob(f'*.cube'):
-        if path.is_file() and path.suffix == ext:
-            calculate_dens_coeffs(path, params, align_method, overwrite=overwrite)
+        if path.is_file() and path.suffix == '.cube':
+            calculate_dens_coeffs(path, params, overwrite=overwrite)
     
 
 if __name__ == '__main__':
@@ -303,8 +317,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    params = CoeffParams(atom_params=DEFAULT_ATOM_PARAMS, align_method=args.align)
+
+    dump(params, 'coeff_params.joblib')
+
     if len(args.input) > 0:
-        calculate_dens_coeffs(Path(args.input), align_method=args.align, overwrite=args.overwrite)
+        calculate_dens_coeffs(Path(args.input), params=params, overwrite=args.overwrite)
     else:
-        calculate_dens_coeffs_all(Path(args.path), align_method=args.align, overwrite=args.overwrite)
+        calculate_dens_coeffs_all(Path(args.path), params=params, overwrite=args.overwrite)
 
