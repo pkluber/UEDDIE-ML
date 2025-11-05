@@ -190,7 +190,7 @@ def generate_density(grid: Cube, mol: gto.Mole, dm: np.ndarray) -> np.ndarray:
 
     return rho
 
-def dimer_cube_difference(xyz_path: Path, params: CubeParams | None = None, overwrite: bool = False, 
+def dimer_cube_difference(xyz_path: Path, params: CubeParams = DEFAULT_PARAMS, overwrite: bool = False, 
                           charges: Tuple[int, int] | None = None) -> bool:
     cube_path = xyz_path.parent / f'{xyz_path.stem}.cube'
     if cube_path.is_file() and not overwrite:
@@ -199,9 +199,6 @@ def dimer_cube_difference(xyz_path: Path, params: CubeParams | None = None, over
 
     print(f'Generating deformation density for {xyz_path.name}...')
     mol_m1, mol_m2, mol_dimer = get_monomers_and_dimer_mol(xyz_path, charges=charges)
-
-    if params is None:
-        params = DEFAULT_PARAMS
 
     method, resolution, extension, level = params.method, params.resolution, params.extension, \
                                             params.dft_grid_level
@@ -245,7 +242,7 @@ def dimer_cube_difference(xyz_path: Path, params: CubeParams | None = None, over
     print(f'Done generating deformation density for {xyz_path.name}!')
     return True
 
-def dimer_cube_differences(data_dir: Path, params: CubeParams | None = None, overwrite: bool = False):
+def dimer_cube_differences(data_dir: Path, params: CubeParams = DEFAULT_PARAMS, overwrite: bool = False):
     paths = list(data_dir.rglob('*.xyz'))
 
     # Poor man's partition :'(
