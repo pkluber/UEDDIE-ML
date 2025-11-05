@@ -79,8 +79,41 @@ def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool =
         y_pred = np.array([y_pred.item()])
         y_pred = y_pred.reshape(1, 1)
         ie_model = scaler_y.inverse_transform(y_pred)[0, 0] * 627.509
+
+        per_atom_IE = model.per_atom_IE 
+        per_atom_e = E
     
     print(f'Predicted interaction energy (kcal/mol): {ie_model}') 
+
+    # Code from visualize_energy.py
+
+    # Convert to NumPy and kcal/mol
+    per_atom_IE = per_atom_IE.cpu().numpy()
+    per_atom_IE = per_atom_IE.reshape(per_atom_IE.shape[1], 1)
+    per_atom_IE = scaler_y.inverse_transform(per_atom_IE) * 627.509
+
+    scaler_baseline = (scaler_y.inverse_transform(np.array([[0]])) * 627.509)[0][0]
+
+    with open(xyz_path) as fd:
+        lines = fd.readlines()
+        natoms = int(lines[0])
+        natoms += int(lines[natoms+2])
+
+    per_atom_IE = per_atom_IE[:, 0] - scaler_baseline
+    per_atom_IE = per_atom_IE[:natoms]
+    per_atom_IE += scaler_baseline / natoms 
+
+    element_map = {0: 'H', 1: 'C', 2: 'N', 3: 'O'}
+    per_atom_e = per_atom_e.squeeze(0).cpu().numpy()
+    
+    for x in range(natoms):
+        elem = element_map[per_atom_e[x]]
+        atom_contrib = per_atom_IE[x]
+
+        print(f'{elem} {atom_contrib:.1f}')
+
+    np.savetxt('eval_per_atom_ie.npy', per_atom_IE, fmt='%.1f')
+
     
 if __name__ == '__main__':
     import argparse
