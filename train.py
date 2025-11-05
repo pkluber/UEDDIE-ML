@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from lion_pytorch.cautious_lion import Lion
+from lion_pytorch import Lion
 
 import numpy as np
 import dataset
