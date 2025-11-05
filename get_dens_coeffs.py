@@ -18,11 +18,7 @@ from io import TextIOWrapper
 from typing import Tuple
 
 DEFAULT_DESC_PARAMS = DescriptorParams(r_o=2.5, r_i=0.0, n_rad=4, n_l=3, gamma=0)
-
-def atom_desc_map():
-    return DEFAULT_DESC_PARAMS
-
-DEFAULT_ATOM_PARAMS = defaultdict(atom_desc_map)
+DEFAULT_ATOM_PARAMS = {'H': DEFAULT_DESC_PARAMS, 'C': DEFAULT_DESC_PARAMS, 'N': DEFAULT_DESC_PARAMS, 'O': DEFAULT_DESC_PARAMS}
 DEFAULT_ALIGN_METHOD = 'elf'
 
 from dataclasses import dataclass
