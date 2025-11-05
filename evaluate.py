@@ -13,10 +13,10 @@ from typing import Tuple
 def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool = True):
     # Generate .cube file
     cube_params = load('cube_params.joblib')
-    dimer_cube_difference(xyz_path, cube_params, overwrite=True, charges=charges)
+    dimer_cube_difference(xyz_path, cube_params, overwrite=False, charges=charges)
     
     # Generate .coeff file
-    dens_path = xyz_path.parent / f'{xyz_path.stem}.rho'
+    dens_path = xyz_path.parent / f'{xyz_path.stem}.cube'
     coeff_params = load('coeff_params.joblib')
     calculate_dens_coeffs(dens_path, coeff_params, overwrite=True, charges=charges)
 
@@ -61,7 +61,6 @@ def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool =
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = torch.load('model.pt', weights_only=False, map_location=device) 
-    model.disable_multi_gpu(device)
     model.eval()
 
     # Also load the X and Y scalers
@@ -75,6 +74,7 @@ def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool =
     X = torch.from_numpy(X)
 
     with torch.no_grad():
+        X, E, C = X.to(device), E.to(device), C.to(device)
         y_pred = model(X, E, C)
         y_pred = np.array([y_pred.item()])
         y_pred = y_pred.reshape(1, 1)
