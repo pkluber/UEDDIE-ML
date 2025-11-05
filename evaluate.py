@@ -1,5 +1,5 @@
-from get_deformation_densities import dimer_cube_difference
-from get_dens_coeffs import calculate_dens_coeffs
+from get_deformation_densities import dimer_cube_difference, CubeParams
+from get_dens_coeffs import calculate_dens_coeffs, CoeffParams
 from make_dataset import make_dataset
 
 from density.coeff import CoeffWrapper
@@ -11,12 +11,14 @@ from pathlib import Path
 from typing import Tuple
 
 def evaluate(xyz_path: Path, charges: Tuple[int, int] = (0, 0), uses_pca: bool = True):
-    # Generate .rho file
-    dimer_cube_difference(xyz_path, 'LDA', grid_type='becke', overwrite=True, charges=charges)
+    # Generate .cube file
+    cube_params = load('cube_params.joblib')
+    dimer_cube_difference(xyz_path, cube_params, overwrite=True, charges=charges)
     
     # Generate .coeff file
     dens_path = xyz_path.parent / f'{xyz_path.stem}.rho'
-    calculate_dens_coeffs(dens_path, use_rho=True, overwrite=True, charges=charges)
+    coeff_params = load('coeff_params.joblib')
+    calculate_dens_coeffs(dens_path, coeff_params, overwrite=True, charges=charges)
 
     # Load .coeff file
     coeffs_path = xyz_path.parent / f'{xyz_path.stem}.coeff'
