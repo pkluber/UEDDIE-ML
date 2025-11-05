@@ -17,6 +17,7 @@ from density.utils import get_charges
 from pathlib import Path
 from typing import Tuple
 
+DEFAULT_METHOD = 'LDA'
 DEFAULT_RESOLUTION = 0.1
 DEFAULT_EXTENSION = 5.0
 DEFAULT_LEVEL = 3
@@ -25,12 +26,13 @@ from dataclasses import dataclass
 
 @dataclass
 class CubeParams:
+    method: str
     resolution: float
     extension: float
     dft_grid_level: int
 
-DEFAULT_PARAMS = CubeParams(resolution=DEFAULT_RESOLUTION, extension=DEFAULT_EXTENSION,
-                            dft_grid_level=DEFAULT_LEVEL)
+DEFAULT_PARAMS = CubeParams(method=DEFAULT_METHOD, resolution=DEFAULT_RESOLUTION, 
+                            extension=DEFAULT_EXTENSION, dft_grid_level=DEFAULT_LEVEL)
 
 from joblib import dump
 
@@ -188,8 +190,8 @@ def generate_density(grid: Cube, mol: gto.Mole, dm: np.ndarray) -> np.ndarray:
 
     return rho
 
-def dimer_cube_difference(xyz_path: Path, method: str, params: CubeParams | None = None, 
-                          overwrite: bool = False, charges: Tuple[int, int] | None = None) -> bool:
+def dimer_cube_difference(xyz_path: Path, params: CubeParams | None = None, overwrite: bool = False, 
+                          charges: Tuple[int, int] | None = None) -> bool:
     cube_path = xyz_path.parent / f'{xyz_path.stem}.cube'
     if cube_path.is_file() and not overwrite:
         print(f'Found .cube file for {xyz_path.name}, not overwriting...')
@@ -201,7 +203,8 @@ def dimer_cube_difference(xyz_path: Path, method: str, params: CubeParams | None
     if params is None:
         params = DEFAULT_PARAMS
 
-    resolution, extension, level = params.resolution, params.extension, params.dft_grid_level
+    method, resolution, extension, level = params.method, params.resolution, params.extension, \
+                                            params.dft_grid_level
     
     method = method.strip().upper()
     if method not in ['HF', 'MP2', 'PBE0', 'LDA']:
@@ -242,8 +245,7 @@ def dimer_cube_difference(xyz_path: Path, method: str, params: CubeParams | None
     print(f'Done generating deformation density for {xyz_path.name}!')
     return True
 
-def dimer_cube_differences(data_dir: Path, method: str, params: CubeParams | None = None, 
-                           overwrite: bool = False):
+def dimer_cube_differences(data_dir: Path, params: CubeParams | None = None, overwrite: bool = False):
     paths = list(data_dir.rglob('*.xyz'))
 
     # Poor man's partition :'(
@@ -252,13 +254,13 @@ def dimer_cube_differences(data_dir: Path, method: str, params: CubeParams | Non
 
     for path in paths:
         if path.is_file() and path.suffix == '.xyz':
-            dimer_cube_difference(path, method, params, overwrite=overwrite)
+            dimer_cube_difference(path, params, overwrite=overwrite)
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Get the deformation density for any dimer .xyz structure.')
-    parser.add_argument('method', type=str, help='Density type. Choose from HF, MP2, LDA, or PBE0')
+    parser.add_argument('--method', type=str, default=DEFAULT_METHOD, help='Density type. Choose from HF, MP2, LDA, or PBE0')
     parser.add_argument('--resolution', type=float, default=DEFAULT_RESOLUTION, help='.cube resolution')
     parser.add_argument('--extension', type=float, default=DEFAULT_EXTENSION, help='Extension on sides of .cube file')
     parser.add_argument('--level', type=int, default=DEFAULT_LEVEL, help='Level to use for LDA and the Becke grid')
@@ -268,12 +270,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    params = CubeParams(resolution=args.resolution, extension=args.extension, 
-                        dft_grid_level=args.level)
+    params = CubeParams(method=args.method, resolution=args.resolution, 
+                        extension=args.extension, dft_grid_level=args.level)
 
     dump(params, 'cube_params.joblib')
 
     if len(args.input) > 0:
-        dimer_cube_difference(Path(args.input), args.method, params, args.overwrite)
+        dimer_cube_difference(Path(args.input), params, args.overwrite)
     else:
-        dimer_cube_differences(Path(args.path), args.method, params, args.overwrite) 
+        dimer_cube_differences(Path(args.path), params, args.overwrite) 
