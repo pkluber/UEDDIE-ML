@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
+from lion_pytorch.cautious_lion import Lion
 
 import numpy as np
 import dataset
@@ -26,7 +27,7 @@ else:
 device = devices[0]
 
 # Load datasets
-train_dataset, validation_dataset, test_dataset = dataset.get_train_validation_test_datasets()
+train_dataset, validation_dataset, test_dataset = dataset.get_train_validation_test_datasets(train_ratios={'IL174': 0.9, 'extraILs': 0.9, 'S66': 0.8, 'SSI': 0.9})
 total_dataset = len(train_dataset) + len(validation_dataset) + len(test_dataset)
 train_split_percent = int(100 * len(train_dataset) / total_dataset)
 validation_split_percent = int(100 * len(validation_dataset) / total_dataset)
@@ -59,7 +60,7 @@ if hasattr(torch, 'compile'):
 
 # Loss and stuff
 loss_function = nn.MSELoss()
-optimizer = optim.AdamW(list(model.parameters()), lr=4e-5)
+optimizer = Lion(list(model.parameters()), lr=5e-6, weight_decay=2e-3)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.25, patience=60)
 
 print(f'Beginning training using primarily device={device}!', flush=True)
